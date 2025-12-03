@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
 from telegram.error import BadRequest
-from aiohttp import web
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -17,6 +16,9 @@ logging.basicConfig(
     handlers=[logging.FileHandler("quest_bot.log", encoding="utf-8"), logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
+
+# ========== ТОКЕН ==========
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8459803957:AAExB3Q5b9iYxIG0YcALsc_kFz2aE3ZWVbQ")
 
 db_lock = threading.RLock()
 conn = sqlite3.connect('quest_bot.db', check_same_thread=False, timeout=30.0)
@@ -207,13 +209,13 @@ ENEMIES = {
     "skeleton": {"name": "Скелет", "emoji": "☠️", "level": 2, "health": 25, "damage": 5, "xp": 40, "gold": 20, "loot": ["bone_fragment"], "is_boss": False},
     "zombie": {"name": "Зомби", "emoji": "🧟", "level": 2, "health": 30, "damage": 6, "xp": 50, "gold": 25, "loot": ["rotten_flesh"], "is_boss": False},
     "imp": {"name": "Чертёнок", "emoji": "😈", "level": 2, "health": 20, "damage": 7, "xp": 45, "gold": 15, "loot": ["sulfur"], "is_boss": False},
+    "orc": {"name": "Орк", "emoji": "🗡️", "level": 3, "health": 35, "damage": 8, "xp": 60, "gold": 30, "loot": ["iron_ore"], "is_boss": False},
     
     # Усиленные враги (3-4 уровня)
-    "orc": {"name": "Орк", "emoji": "🗡️", "level": 3, "health": 45, "damage": 12, "xp": 100, "gold": 50, "loot": ["iron_ore"], "is_boss": False},
     "troll": {"name": "Тролль", "emoji": "👹", "level": 3, "health": 60, "damage": 11, "xp": 110, "gold": 60, "loot": ["troll_club", "cave_pearl"], "is_boss": False},
     "werewolf": {"name": "Оборотень", "emoji": "🐺", "level": 4, "health": 50, "damage": 15, "xp": 130, "gold": 70, "loot": ["wolf_fur", "silver_coin"], "is_boss": False},
     "shadow_knight": {"name": "Рыцарь Теней", "emoji": "⚔️", "level": 4, "health": 65, "damage": 18, "xp": 150, "gold": 80, "loot": ["dark_crystal", "iron_sword"], "is_boss": False},
-    "witch": {"name": "Ведьма", "emoji": "🧙‍♀️", "level": 4, "health": 40, "damage": 20, "xp": 140, "gold": 75, "loot": ["magic_dust", "cursed_potion"], "is_boss": False},
+    "witch": {"name": "Ведьма", "emoji": "🧙", "level": 4, "health": 40, "damage": 20, "xp": 140, "gold": 75, "loot": ["magic_dust", "cursed_potion"], "is_boss": False},
     
     # Редкие враги (5-6 уровня)
     "basilisk": {"name": "Василиск", "emoji": "🐍", "level": 5, "health": 100, "damage": 25, "xp": 200, "gold": 120, "loot": ["basilisk_fang", "poison_vial"], "is_boss": False},
@@ -248,7 +250,7 @@ SHOP_ITEMS = {
     "shadow_cloak": {"name": "Плащ теней", "emoji": "⚫", "price": 220, "rarity": "rare", "class": "rogue", "defense": 3, "attack": 2},
     
     "holy_shield": {"name": "Святой щит", "emoji": "⛪", "price": 300, "rarity": "rare", "class": "paladin", "defense": 6},
-    "blessed_armor": {"name": "Благословенная брония", "emoji": "✨", "price": 280, "rarity": "rare", "class": "paladin", "defense": 5, "health": 20},
+    "blessed_armor": {"name": "Благословенная броня", "emoji": "✨", "price": 280, "rarity": "rare", "class": "paladin", "defense": 5, "health": 20},
     "titan_shield": {"name": "Щит Титана", "emoji": "🛡️", "price": 5000, "rarity": "legendary", "class": "paladin", "defense": 40},
     
     "longbow": {"name": "Длинный лук", "emoji": "🏹", "price": 220, "rarity": "uncommon", "class": "ranger", "attack": 7},
@@ -286,6 +288,7 @@ ITEMS = {
     "eternal_essence": {"name": "Вечная сущность", "rarity": "legendary", "emoji": "✨"},
     "king_crown": {"name": "Корона Короля", "rarity": "legendary", "emoji": "👑"},
     "eternal_staff": {"name": "Вечный посох", "rarity": "legendary", "emoji": "🔮"},
+    "iron_sword": {"name": "Железный меч", "rarity": "uncommon", "emoji": "⚔️"},
 }
 
 MATERIALS = {
@@ -314,24 +317,32 @@ SKILLS = {
     "whirlwind": {"name": "Смерч атак", "emoji": "🌪️", "type": "warrior", "damage_multiplier": 1.7, "cost": 15},
     "battle_cry": {"name": "Боевой клич", "emoji": "📣", "type": "warrior", "damage_multiplier": 1.5, "cost": 10},
     "invulnerability": {"name": "Неуязвимость", "emoji": "🛡️", "type": "warrior", "damage_multiplier": 0.3, "cost": 20},
+    "shield_slam": {"name": "Удар щитом", "emoji": "🛡️", "type": "warrior", "damage_multiplier": 1.3, "cost": 12},
+    "execute": {"name": "Казнь", "emoji": "⚔️", "type": "warrior", "damage_multiplier": 2.2, "cost": 25},
     
     # Разбойник
     "backstab": {"name": "Удар в спину", "emoji": "🗡️", "type": "rogue", "damage_multiplier": 2.0, "cost": 12},
     "invisibility": {"name": "Невидимость", "emoji": "👻", "type": "rogue", "damage_multiplier": 0.0, "cost": 15},
     "trap": {"name": "Ловушки", "emoji": "🪤", "type": "rogue", "damage_multiplier": 1.3, "cost": 10},
     "deadly_strike": {"name": "Смертельный удар", "emoji": "💀", "type": "rogue", "damage_multiplier": 2.5, "cost": 25},
+    "evasion": {"name": "Уворот", "emoji": "💨", "type": "rogue", "damage_multiplier": 0.5, "cost": 10},
+    "poison_blade": {"name": "Отравленный клинок", "emoji": "☠️", "type": "rogue", "damage_multiplier": 1.6, "cost": 18},
     
     # Паладин
     "shield_bash": {"name": "Удар щитом", "emoji": "🛡️", "type": "paladin", "damage_multiplier": 1.5, "cost": 12},
     "holy_shield": {"name": "Святой щит", "emoji": "⛪", "type": "paladin", "damage_multiplier": 0.5, "cost": 15},
     "resurrection": {"name": "Воскрешение", "emoji": "✨", "type": "paladin", "damage_multiplier": 0.0, "cost": 40},
     "divine_ray": {"name": "Божественный луч", "emoji": "☀️", "type": "paladin", "damage_multiplier": 1.8, "cost": 20},
+    "blessing": {"name": "Благословение", "emoji": "🙏", "type": "paladin", "damage_multiplier": 0.8, "cost": 12},
+    "hammer_of_justice": {"name": "Молот справедливости", "emoji": "🔨", "type": "paladin", "damage_multiplier": 2.1, "cost": 22},
     
     # Рейнджер
     "multi_shot": {"name": "Множественный выстрел", "emoji": "🏹", "type": "ranger", "damage_multiplier": 1.6, "cost": 14},
     "animal_capture": {"name": "Ловля животных", "emoji": "🦁", "type": "ranger", "damage_multiplier": 0.8, "cost": 10},
     "ice_trap": {"name": "Ловушка льда", "emoji": "❄️", "type": "ranger", "damage_multiplier": 1.2, "cost": 12},
     "pet_summon": {"name": "Призыв питомца", "emoji": "🐾", "type": "ranger", "damage_multiplier": 1.4, "cost": 18},
+    "scatter_shot": {"name": "Разброс выстрелов", "emoji": "🎯", "type": "ranger", "damage_multiplier": 1.5, "cost": 16},
+    "aimed_shot": {"name": "Целевой выстрел", "emoji": "🏹", "type": "ranger", "damage_multiplier": 2.0, "cost": 20},
 }
 
 # ========== РЕЦЕПТЫ ==========
@@ -364,6 +375,13 @@ RECIPES = {
         "materials": {"eternal_essence": 5, "adamantite": 10},
         "result": "eternal_ring",
         "level_required": 40
+    },
+    "artifact_recipe": {
+        "name": "Рецепт: Артефакт вечности",
+        "emoji": "🔮",
+        "materials": {"void_essence": 3, "celestial_stone": 2},
+        "result": "eternal_artifact",
+        "level_required": 35
     },
 }
 
@@ -720,7 +738,7 @@ def get_materials(chat_id, user_id):
 @safe_db_execute
 def get_daily_quest_progress(chat_id, user_id):
     cursor.execute(
-        'SELECT quest_id FROM quests WHERE chat_id=? AND user_id=? AND quest_type=\'daily\' AND date(completed_at) = date(\'now\')',
+        'SELECT quest_id FROM quests WHERE chat_id=? AND user_id=? AND quest_type=\'daily\'',
         (chat_id, user_id)
     )
     return [row[0] for row in cursor.fetchall()]
@@ -728,7 +746,7 @@ def get_daily_quest_progress(chat_id, user_id):
 @safe_db_execute
 def get_weekly_quest_progress(chat_id, user_id):
     cursor.execute(
-        'SELECT quest_id FROM quests WHERE chat_id=? AND user_id=? AND quest_type=\'weekly\' AND strftime(\'%W\', completed_at) = strftime(\'%W\', \'now\')',
+        'SELECT quest_id FROM quests WHERE chat_id=? AND user_id=? AND quest_type=\'weekly\'',
         (chat_id, user_id)
     )
     return [row[0] for row in cursor.fetchall()]
@@ -836,7 +854,7 @@ def end_battle(chat_id, user_id):
     conn.commit()
 
 @safe_db_execute
-def start_raid(chat_id, user_id, raid_id):
+def start_raid_battle(chat_id, user_id, raid_id):
     cursor.execute('DELETE FROM raids WHERE chat_id=? AND user_id=? AND raid_id=?', (chat_id, user_id, raid_id))
     cursor.execute(
         'INSERT INTO raids VALUES (?, ?, ?, ?, ?)',
@@ -883,10 +901,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Каждый класс имеет свои сильные стороны:"
         )
         
-        if hasattr(update, 'callback_query') and update.callback_query:
-            await update.callback_query.edit_message_text(reply_text, reply_markup=InlineKeyboardMarkup(keyboard))
-        else:
-            await update.message.reply_text(reply_text, reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.message.reply_text(reply_text, reply_markup=InlineKeyboardMarkup(keyboard))
     else:
         keyboard = [
             [InlineKeyboardButton("⚔️ БОЙ", callback_data="start_battle"), InlineKeyboardButton("📜 КВЕСТЫ", callback_data="show_quests")],
@@ -903,10 +918,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Исследуй подземелья, учи умения и становись легендой!"
         )
         
-        if hasattr(update, 'callback_query') and update.callback_query:
-            await update.callback_query.edit_message_text(reply_text, reply_markup=InlineKeyboardMarkup(keyboard))
-        else:
-            await update.message.reply_text(reply_text, reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.message.reply_text(reply_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def select_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1352,7 +1364,6 @@ async def show_achievements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     text = "🎖️ ДОСТИЖЕНИЯ\n" + f"{'─' * 30}\n\n"
     
-    # Обновляем прогресс достижений
     update_achievement_progress(chat_id, user.id, "hunter_10", player["total_kills"])
     update_achievement_progress(chat_id, user.id, "hunter_50", player["total_kills"])
     update_achievement_progress(chat_id, user.id, "hunter_100", player["total_kills"])
@@ -1376,7 +1387,6 @@ async def show_achievements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_achievement_progress(chat_id, user.id, "hero_level_30", player["level"])
     update_achievement_progress(chat_id, user.id, "hero_level_50", player["level"])
     
-    # Показываем достижения
     achievement_count = 0
     for ach_id, ach_info in ACHIEVEMENTS.items():
         progress = get_achievement_progress(chat_id, user.id, ach_id)
@@ -1387,7 +1397,7 @@ async def show_achievements(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"   {progress}/{target}\n\n"
         achievement_count += 1
         
-        if achievement_count >= 5:
+        if achievement_count >= 10:
             break
     
     keyboard = [[InlineKeyboardButton("⬅️ НАЗАД", callback_data="main_menu")]]
@@ -1645,7 +1655,7 @@ async def start_raid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     raid_info = RAIDS[raid_id]
-    start_raid(chat_id, user.id, raid_id)
+    start_raid_battle(chat_id, user.id, raid_id)
     
     text = (
         f"🏰 {raid_info['name'].upper()}\n\n"
@@ -1743,43 +1753,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "main_menu":
         await main_menu(update, context)
 
-async def webhook_handler(request):
-    data = await request.json()
-    update = Update.de_json(data, app.bot)
-    await app.process_update(update)
-    return web.Response(text="OK")
-
-TOKEN = os.getenv("8459803957:AAExB3Q5b9iYxIG0YcALsc_kFz2aE3ZWVbQ")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", 8000))
-
-app = ApplicationBuilder().token(TOKEN).build()
-
-app.add_handler(CommandHandler("start", start_command))
-app.add_handler(CallbackQueryHandler(button_handler))
-
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
+    app = ApplicationBuilder().token(TOKEN).build()
     
-    if WEBHOOK_URL:
-        async def main():
-            await app.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
-            
-            app_web = web.Application()
-            app_web.router.add_post("/webhook", webhook_handler)
-            
-            runner = web.AppRunner(app_web)
-            await runner.setup()
-            site = web.TCPSite(runner, "0.0.0.0", WEBHOOK_PORT)
-            await site.start()
-            
-            print(f"Бот запущен на вебхуке: {WEBHOOK_URL}")
-            
-            try:
-                await asyncio.Event().wait()
-            except KeyboardInterrupt:
-                await runner.cleanup()
-        
-        loop.run_until_complete(main())
-    else:
-        loop.run_until_complete(app.run_polling())
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    
+    logger.info("✅ Бот запущен!")
+    app.run_polling()

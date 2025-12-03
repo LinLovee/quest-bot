@@ -2271,7 +2271,6 @@ async def start_health_server(port=8000):
     app_health = web.Application()
     app_health.router.add_get("/health", health_check_handler)
     app_health.router.add_get("/", health_check_handler)
-    app_health.router.add_head("/", health_check_handler)
     
     runner = web.AppRunner(app_health)
     await runner.setup()
@@ -2337,7 +2336,7 @@ if __name__ == "__main__":
                 await app.bot.set_webhook(
                     url=f"{WEBHOOK_URL}/webhook",
                     drop_pending_updates=True,
-                    allowed_updates=[]  # Empty list = accept all update types
+                    allowed_updates=[]
                 )
                 logger.info(f"✅ Вебхук установлен: {WEBHOOK_URL}/webhook")
                 await asyncio.sleep(1)

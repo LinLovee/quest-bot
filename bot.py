@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
 from telegram.error import BadRequest
+from aiohttp import web
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -16,9 +17,6 @@ logging.basicConfig(
     handlers=[logging.FileHandler("quest_bot.log", encoding="utf-8"), logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
-
-# ========== ТОКЕН ==========
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8459803957:AAExB3Q5b9iYxIG0YcALsc_kFz2aE3ZWVbQ")
 
 db_lock = threading.RLock()
 conn = sqlite3.connect('quest_bot.db', check_same_thread=False, timeout=30.0)
@@ -203,27 +201,20 @@ PETS = {
 # ========== ВРАГИ ==========
 
 ENEMIES = {
-    # Обычные враги (1-3 уровня)
     "goblin": {"name": "Гоблин", "emoji": "👹", "level": 1, "health": 15, "damage": 3, "xp": 25, "gold": 10, "loot": ["copper_coin"], "is_boss": False},
     "rat": {"name": "Крыса", "emoji": "🐭", "level": 1, "health": 10, "damage": 2, "xp": 15, "gold": 5, "loot": ["copper_coin"], "is_boss": False},
     "skeleton": {"name": "Скелет", "emoji": "☠️", "level": 2, "health": 25, "damage": 5, "xp": 40, "gold": 20, "loot": ["bone_fragment"], "is_boss": False},
     "zombie": {"name": "Зомби", "emoji": "🧟", "level": 2, "health": 30, "damage": 6, "xp": 50, "gold": 25, "loot": ["rotten_flesh"], "is_boss": False},
     "imp": {"name": "Чертёнок", "emoji": "😈", "level": 2, "health": 20, "damage": 7, "xp": 45, "gold": 15, "loot": ["sulfur"], "is_boss": False},
-    "orc": {"name": "Орк", "emoji": "🗡️", "level": 3, "health": 35, "damage": 8, "xp": 60, "gold": 30, "loot": ["iron_ore"], "is_boss": False},
-    
-    # Усиленные враги (3-4 уровня)
+    "orc": {"name": "Орк", "emoji": "🗡️", "level": 3, "health": 45, "damage": 12, "xp": 100, "gold": 50, "loot": ["iron_ore"], "is_boss": False},
     "troll": {"name": "Тролль", "emoji": "👹", "level": 3, "health": 60, "damage": 11, "xp": 110, "gold": 60, "loot": ["troll_club", "cave_pearl"], "is_boss": False},
     "werewolf": {"name": "Оборотень", "emoji": "🐺", "level": 4, "health": 50, "damage": 15, "xp": 130, "gold": 70, "loot": ["wolf_fur", "silver_coin"], "is_boss": False},
     "shadow_knight": {"name": "Рыцарь Теней", "emoji": "⚔️", "level": 4, "health": 65, "damage": 18, "xp": 150, "gold": 80, "loot": ["dark_crystal", "iron_sword"], "is_boss": False},
-    "witch": {"name": "Ведьма", "emoji": "🧙", "level": 4, "health": 40, "damage": 20, "xp": 140, "gold": 75, "loot": ["magic_dust", "cursed_potion"], "is_boss": False},
-    
-    # Редкие враги (5-6 уровня)
+    "witch": {"name": "Ведьма", "emoji": "🧙‍♀️", "level": 4, "health": 40, "damage": 20, "xp": 140, "gold": 75, "loot": ["magic_dust", "cursed_potion"], "is_boss": False},
     "basilisk": {"name": "Василиск", "emoji": "🐍", "level": 5, "health": 100, "damage": 25, "xp": 200, "gold": 120, "loot": ["basilisk_fang", "poison_vial"], "is_boss": False},
     "ice_mage": {"name": "Ледяной маг", "emoji": "❄️", "level": 5, "health": 55, "damage": 28, "xp": 180, "gold": 110, "loot": ["ice_crystal", "mana_potion"], "is_boss": False},
     "demon": {"name": "Демон", "emoji": "😈", "level": 6, "health": 120, "damage": 32, "xp": 250, "gold": 150, "loot": ["demonic_essence", "soul_fragment"], "is_boss": False},
     "golem": {"name": "Голем", "emoji": "🪨", "level": 6, "health": 150, "damage": 20, "xp": 220, "gold": 140, "loot": ["stone_heart", "magical_core"], "is_boss": False},
-    
-    # БОССЫ (7-10 уровня)
     "dragon": {"name": "Дракон", "emoji": "🐉", "level": 7, "health": 200, "damage": 40, "xp": 500, "gold": 300, "loot": ["dragon_scale", "dragon_heart"], "is_boss": True},
     "lich": {"name": "Лич", "emoji": "💀", "level": 8, "health": 180, "damage": 45, "xp": 550, "gold": 350, "loot": ["soul_essence", "lich_staff"], "is_boss": True},
     "archidemon": {"name": "Архидемон", "emoji": "😈", "level": 9, "health": 250, "damage": 50, "xp": 700, "gold": 400, "loot": ["demonic_core", "eternal_essence"], "is_boss": True},
@@ -237,22 +228,17 @@ SHOP_ITEMS = {
     "mana_potion": {"name": "Зелье маны", "emoji": "💙", "price": 50, "rarity": "common", "class": None},
     "strength_potion": {"name": "Зелье силы", "emoji": "💪", "price": 100, "rarity": "uncommon", "class": None},
     "wisdom_elixir": {"name": "Эликсир мудрости", "emoji": "🧠", "price": 200, "rarity": "rare", "class": None},
-    
     "iron_sword": {"name": "Железный меч", "emoji": "⚔️", "price": 200, "rarity": "uncommon", "class": "warrior", "attack": 5},
     "steel_armor": {"name": "Стальная броня", "emoji": "🛡️", "price": 250, "rarity": "uncommon", "class": "warrior", "defense": 4},
     "legendary_sword": {"name": "Меч Вечности", "emoji": "⚡", "price": 5000, "rarity": "legendary", "class": "warrior", "attack": 50},
-    
     "fireball_staff": {"name": "Посох огня", "emoji": "🔥", "price": 200, "rarity": "rare", "class": "mage", "attack": 8},
     "mage_robe": {"name": "Мантия мага", "emoji": "👗", "price": 150, "rarity": "uncommon", "class": "mage", "mana": 20},
     "archimage_staff": {"name": "Посох Архимага", "emoji": "🔮", "price": 5000, "rarity": "legendary", "class": "mage", "attack": 30, "mana": 100},
-    
     "dagger_set": {"name": "Набор кинжалов", "emoji": "🗡️", "price": 180, "rarity": "uncommon", "class": "rogue", "attack": 6},
     "shadow_cloak": {"name": "Плащ теней", "emoji": "⚫", "price": 220, "rarity": "rare", "class": "rogue", "defense": 3, "attack": 2},
-    
     "holy_shield": {"name": "Святой щит", "emoji": "⛪", "price": 300, "rarity": "rare", "class": "paladin", "defense": 6},
     "blessed_armor": {"name": "Благословенная броня", "emoji": "✨", "price": 280, "rarity": "rare", "class": "paladin", "defense": 5, "health": 20},
     "titan_shield": {"name": "Щит Титана", "emoji": "🛡️", "price": 5000, "rarity": "legendary", "class": "paladin", "defense": 40},
-    
     "longbow": {"name": "Длинный лук", "emoji": "🏹", "price": 220, "rarity": "uncommon", "class": "ranger", "attack": 7},
     "ranger_armor": {"name": "Лёгкая броня рейнджера", "emoji": "🧥", "price": 180, "rarity": "uncommon", "class": "ranger", "defense": 3, "attack": 2},
     "moon_bow": {"name": "Лук Луны", "emoji": "🏹", "price": 5000, "rarity": "legendary", "class": "ranger", "attack": 40},
@@ -288,7 +274,6 @@ ITEMS = {
     "eternal_essence": {"name": "Вечная сущность", "rarity": "legendary", "emoji": "✨"},
     "king_crown": {"name": "Корона Короля", "rarity": "legendary", "emoji": "👑"},
     "eternal_staff": {"name": "Вечный посох", "rarity": "legendary", "emoji": "🔮"},
-    "iron_sword": {"name": "Железный меч", "rarity": "uncommon", "emoji": "⚔️"},
 }
 
 MATERIALS = {
@@ -304,45 +289,28 @@ MATERIALS = {
 # ========== УМЕНИЯ ==========
 
 SKILLS = {
-    # Маг
     "fireball": {"name": "Огненный шар", "emoji": "🔥", "type": "mage", "damage_multiplier": 1.5, "cost": 15},
     "frost_nova": {"name": "Ледяная nova", "emoji": "❄️", "type": "mage", "damage_multiplier": 1.4, "cost": 15},
     "chain_lightning": {"name": "Цепная молния", "emoji": "⚡", "type": "mage", "damage_multiplier": 1.6, "cost": 20},
     "meteor_shower": {"name": "Метеоритный дождь", "emoji": "☄️", "type": "mage", "damage_multiplier": 2.0, "cost": 30},
     "teleport": {"name": "Телепортация", "emoji": "🌀", "type": "mage", "damage_multiplier": 0.5, "cost": 25},
     "time_vortex": {"name": "Временной вихрь", "emoji": "⏳", "type": "mage", "damage_multiplier": 1.8, "cost": 35},
-    
-    # Воин
     "power_strike": {"name": "Мощный удар", "emoji": "💥", "type": "warrior", "damage_multiplier": 1.8, "cost": 10},
     "whirlwind": {"name": "Смерч атак", "emoji": "🌪️", "type": "warrior", "damage_multiplier": 1.7, "cost": 15},
     "battle_cry": {"name": "Боевой клич", "emoji": "📣", "type": "warrior", "damage_multiplier": 1.5, "cost": 10},
     "invulnerability": {"name": "Неуязвимость", "emoji": "🛡️", "type": "warrior", "damage_multiplier": 0.3, "cost": 20},
-    "shield_slam": {"name": "Удар щитом", "emoji": "🛡️", "type": "warrior", "damage_multiplier": 1.3, "cost": 12},
-    "execute": {"name": "Казнь", "emoji": "⚔️", "type": "warrior", "damage_multiplier": 2.2, "cost": 25},
-    
-    # Разбойник
     "backstab": {"name": "Удар в спину", "emoji": "🗡️", "type": "rogue", "damage_multiplier": 2.0, "cost": 12},
     "invisibility": {"name": "Невидимость", "emoji": "👻", "type": "rogue", "damage_multiplier": 0.0, "cost": 15},
     "trap": {"name": "Ловушки", "emoji": "🪤", "type": "rogue", "damage_multiplier": 1.3, "cost": 10},
     "deadly_strike": {"name": "Смертельный удар", "emoji": "💀", "type": "rogue", "damage_multiplier": 2.5, "cost": 25},
-    "evasion": {"name": "Уворот", "emoji": "💨", "type": "rogue", "damage_multiplier": 0.5, "cost": 10},
-    "poison_blade": {"name": "Отравленный клинок", "emoji": "☠️", "type": "rogue", "damage_multiplier": 1.6, "cost": 18},
-    
-    # Паладин
     "shield_bash": {"name": "Удар щитом", "emoji": "🛡️", "type": "paladin", "damage_multiplier": 1.5, "cost": 12},
     "holy_shield": {"name": "Святой щит", "emoji": "⛪", "type": "paladin", "damage_multiplier": 0.5, "cost": 15},
     "resurrection": {"name": "Воскрешение", "emoji": "✨", "type": "paladin", "damage_multiplier": 0.0, "cost": 40},
     "divine_ray": {"name": "Божественный луч", "emoji": "☀️", "type": "paladin", "damage_multiplier": 1.8, "cost": 20},
-    "blessing": {"name": "Благословение", "emoji": "🙏", "type": "paladin", "damage_multiplier": 0.8, "cost": 12},
-    "hammer_of_justice": {"name": "Молот справедливости", "emoji": "🔨", "type": "paladin", "damage_multiplier": 2.1, "cost": 22},
-    
-    # Рейнджер
     "multi_shot": {"name": "Множественный выстрел", "emoji": "🏹", "type": "ranger", "damage_multiplier": 1.6, "cost": 14},
     "animal_capture": {"name": "Ловля животных", "emoji": "🦁", "type": "ranger", "damage_multiplier": 0.8, "cost": 10},
     "ice_trap": {"name": "Ловушка льда", "emoji": "❄️", "type": "ranger", "damage_multiplier": 1.2, "cost": 12},
     "pet_summon": {"name": "Призыв питомца", "emoji": "🐾", "type": "ranger", "damage_multiplier": 1.4, "cost": 18},
-    "scatter_shot": {"name": "Разброс выстрелов", "emoji": "🎯", "type": "ranger", "damage_multiplier": 1.5, "cost": 16},
-    "aimed_shot": {"name": "Целевой выстрел", "emoji": "🏹", "type": "ranger", "damage_multiplier": 2.0, "cost": 20},
 }
 
 # ========== РЕЦЕПТЫ ==========
@@ -375,13 +343,6 @@ RECIPES = {
         "materials": {"eternal_essence": 5, "adamantite": 10},
         "result": "eternal_ring",
         "level_required": 40
-    },
-    "artifact_recipe": {
-        "name": "Рецепт: Артефакт вечности",
-        "emoji": "🔮",
-        "materials": {"void_essence": 3, "celestial_stone": 2},
-        "result": "eternal_artifact",
-        "level_required": 35
     },
 }
 
@@ -456,33 +417,26 @@ ACHIEVEMENTS = {
     "hunter_50": {"name": "Опытный охотник", "emoji": "⚔️", "description": "Убей 50 врагов", "target": 50, "reward": 500},
     "hunter_100": {"name": "Мастер охоты", "emoji": "⚔️", "description": "Убей 100 врагов", "target": 100, "reward": 1000},
     "hunter_500": {"name": "Легенда охоты", "emoji": "⚔️", "description": "Убей 500 врагов", "target": 500, "reward": 5000},
-    
     "rich_1000": {"name": "Богач", "emoji": "💰", "description": "Накопи 1000 золота", "target": 1000, "reward": 200},
     "rich_5000": {"name": "Мультимиллионер", "emoji": "💰", "description": "Накопи 5000 золота", "target": 5000, "reward": 1000},
     "rich_10000": {"name": "Король золота", "emoji": "💰", "description": "Накопи 10000 золота", "target": 10000, "reward": 5000},
     "rich_50000": {"name": "Божество богатства", "emoji": "💰", "description": "Накопи 50000 золота", "target": 50000, "reward": 10000},
-    
     "scholar_3": {"name": "Ученик", "emoji": "📚", "description": "Выучи 3 умения", "target": 3, "reward": 150},
     "scholar_7": {"name": "Учёный", "emoji": "📚", "description": "Выучи 7 умений", "target": 7, "reward": 500},
     "scholar_10": {"name": "Мастер магии", "emoji": "📚", "description": "Выучи 10 умений", "target": 10, "reward": 1500},
-    
     "collector_5": {"name": "Коллекционер", "emoji": "🎁", "description": "Собери 5 редких предметов", "target": 5, "reward": 200},
     "collector_15": {"name": "Серьёзный коллекционер", "emoji": "🎁", "description": "Собери 15 редких предметов", "target": 15, "reward": 800},
     "collector_30": {"name": "Мастер сбора", "emoji": "🎁", "description": "Собери 30 редких предметов", "target": 30, "reward": 2000},
-    
     "boss_slayer_3": {"name": "Убийца боссов", "emoji": "👹", "description": "Убей 3 босса", "target": 3, "reward": 500},
     "boss_slayer_10": {"name": "Опытный убийца", "emoji": "👹", "description": "Убей 10 боссов", "target": 10, "reward": 2000},
     "boss_slayer_30": {"name": "Король боссов", "emoji": "👹", "description": "Убей 30 боссов", "target": 30, "reward": 10000},
-    
     "hero_level_10": {"name": "Молодой герой", "emoji": "⭐", "description": "Достигни 10 уровня", "target": 10, "reward": 300},
     "hero_level_20": {"name": "Герой", "emoji": "⭐", "description": "Достигни 20 уровня", "target": 20, "reward": 1000},
     "hero_level_30": {"name": "Великий герой", "emoji": "⭐", "description": "Достигни 30 уровня", "target": 30, "reward": 5000},
     "hero_level_50": {"name": "Легендарный герой", "emoji": "⭐", "description": "Достигни 50 уровня", "target": 50, "reward": 20000},
-    
     "crafter_10": {"name": "Крафтер", "emoji": "🔨", "description": "Создай 10 предметов", "target": 10, "reward": 200},
     "crafter_50": {"name": "Мастер крафта", "emoji": "🔨", "description": "Создай 50 предметов", "target": 50, "reward": 1000},
     "crafter_100": {"name": "Легендарный кузнец", "emoji": "🔨", "description": "Создай 100 предметов", "target": 100, "reward": 5000},
-    
     "pet_master_50": {"name": "Тренер питомцев", "emoji": "🐾", "description": "Прокачай питомца до 50 уровня", "target": 50, "reward": 1000},
     "pet_master_100": {"name": "Мастер питомцев", "emoji": "🐾", "description": "Прокачай питомца до 100 уровня", "target": 100, "reward": 5000},
 }
@@ -738,23 +692,23 @@ def get_materials(chat_id, user_id):
 @safe_db_execute
 def get_daily_quest_progress(chat_id, user_id):
     cursor.execute(
-        'SELECT quest_id FROM quests WHERE chat_id=? AND user_id=? AND quest_type=\'daily\'',
-        (chat_id, user_id)
+        'SELECT quest_id FROM quests WHERE chat_id=? AND user_id=? AND quest_type=? AND date(completed_at) = date("now")',
+        (chat_id, user_id, 'daily')
     )
     return [row[0] for row in cursor.fetchall()]
 
 @safe_db_execute
 def get_weekly_quest_progress(chat_id, user_id):
     cursor.execute(
-        'SELECT quest_id FROM quests WHERE chat_id=? AND user_id=? AND quest_type=\'weekly\'',
-        (chat_id, user_id)
+        'SELECT quest_id FROM quests WHERE chat_id=? AND user_id=? AND quest_type=? AND strftime("%W", completed_at) = strftime("%W", "now")',
+        (chat_id, user_id, 'weekly')
     )
     return [row[0] for row in cursor.fetchall()]
 
 @safe_db_execute
 def complete_quest(chat_id, user_id, quest_id, quest_type='daily'):
     cursor.execute(
-        'INSERT OR IGNORE INTO quests VALUES (?, ?, ?, ?, datetime(\'now\'))',
+        'INSERT OR IGNORE INTO quests VALUES (?, ?, ?, ?, datetime("now"))',
         (chat_id, user_id, quest_id, quest_type)
     )
     conn.commit()
@@ -783,7 +737,7 @@ def update_achievement_progress(chat_id, user_id, achievement_id, progress):
         )
     else:
         cursor.execute(
-            'INSERT INTO achievements VALUES (?, ?, ?, datetime(\'now\'), ?)',
+            'INSERT INTO achievements VALUES (?, ?, ?, datetime("now"), ?)',
             (user_id, chat_id, achievement_id, progress)
         )
     conn.commit()
@@ -819,7 +773,8 @@ def update_pvp_stats(chat_id, user_id, win=True):
     return new_rating
 
 @safe_db_execute
-def start_battle(chat_id, user_id):
+def start_battle_db(chat_id, user_id):
+    """Функция БД для создания боя - возвращает enemy_id (строку)"""
     cursor.execute('DELETE FROM battles WHERE chat_id=? AND user_id=?', (chat_id, user_id))
     
     enemy_id = random.choice(list(ENEMIES.keys()))
@@ -854,7 +809,8 @@ def end_battle(chat_id, user_id):
     conn.commit()
 
 @safe_db_execute
-def start_raid_battle(chat_id, user_id, raid_id):
+def start_raid_db(chat_id, user_id, raid_id):
+    """Функция БД для создания рейда"""
     cursor.execute('DELETE FROM raids WHERE chat_id=? AND user_id=? AND raid_id=?', (chat_id, user_id, raid_id))
     cursor.execute(
         'INSERT INTO raids VALUES (?, ?, ?, ?, ?)',
@@ -901,7 +857,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Каждый класс имеет свои сильные стороны:"
         )
         
-        await update.message.reply_text(reply_text, reply_markup=InlineKeyboardMarkup(keyboard))
+        if hasattr(update, 'callback_query') and update.callback_query:
+            await update.callback_query.edit_message_text(reply_text, reply_markup=InlineKeyboardMarkup(keyboard))
+        else:
+            await update.message.reply_text(reply_text, reply_markup=InlineKeyboardMarkup(keyboard))
     else:
         keyboard = [
             [InlineKeyboardButton("⚔️ БОЙ", callback_data="start_battle"), InlineKeyboardButton("📜 КВЕСТЫ", callback_data="show_quests")],
@@ -918,7 +877,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Исследуй подземелья, учи умения и становись легендой!"
         )
         
-        await update.message.reply_text(reply_text, reply_markup=InlineKeyboardMarkup(keyboard))
+        if hasattr(update, 'callback_query') and update.callback_query:
+            await update.callback_query.edit_message_text(reply_text, reply_markup=InlineKeyboardMarkup(keyboard))
+        else:
+            await update.message.reply_text(reply_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def select_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1397,21 +1359,32 @@ async def show_achievements(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"   {progress}/{target}\n\n"
         achievement_count += 1
         
-        if achievement_count >= 10:
+        if achievement_count >= 5:
             break
     
     keyboard = [[InlineKeyboardButton("⬅️ НАЗАД", callback_data="main_menu")]]
     
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def start_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_battle_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Async обработчик callback для начала боя"""
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
     
     player = get_player(chat_id, user.id)
     
-    enemy_id = start_battle(chat_id, user.id)
+    if not player:
+        await query.answer("❌ Персонаж не найден!", show_alert=True)
+        return
+    
+    # Вызываем функцию БД (НЕ async, БЕЗ await)
+    enemy_id = start_battle_db(chat_id, user.id)
+    
+    if not enemy_id or enemy_id not in ENEMIES:
+        await query.answer("❌ Ошибка создания боя!", show_alert=True)
+        return
+    
     enemy_info = ENEMIES[enemy_id]
     pet = get_player_pet(chat_id, user.id)
     pet_info = PETS[pet["pet_id"]]
@@ -1421,7 +1394,7 @@ async def start_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_battle(chat_id, user.id, enemy_health, player["health"])
     
     text = (
-        f"⚔️ БОЙ НАЧАЛАСЬ!\n\n"
+        f"⚔️ БОЙ НАЧАЛСЯ!\n\n"
         f"👤 Ты: {player['health']}/{player['max_health']} HP\n"
         f"{enemy_info['emoji']} {enemy_info['name']}: {enemy_health} HP\n\n"
         f"🐾 Питомец: {pet_info['emoji']} {pet_info['name']}"
@@ -1643,7 +1616,8 @@ async def show_pvp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def start_raid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_raid_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Async обработчик callback для начала рейда"""
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
@@ -1655,7 +1629,9 @@ async def start_raid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     raid_info = RAIDS[raid_id]
-    start_raid_battle(chat_id, user.id, raid_id)
+    
+    # Вызываем функцию БД (НЕ async, БЕЗ await)
+    start_raid_db(chat_id, user.id, raid_id)
     
     text = (
         f"🏰 {raid_info['name'].upper()}\n\n"
@@ -1723,41 +1699,4 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "show_quests":
         await show_quests(update, context)
     elif data == "show_weekly_quests":
-        await show_weekly_quests(update, context)
-    elif data.startswith("complete_quest_"):
-        await complete_daily_quest(update, context)
-    elif data == "show_skills":
-        await show_skills(update, context)
-    elif data.startswith("learn_skill_"):
-        await learn_skill(update, context)
-    elif data == "show_crafting":
-        await show_crafting(update, context)
-    elif data.startswith("craft_"):
-        await craft_item(update, context)
-    elif data == "show_raids":
-        await show_raids(update, context)
-    elif data.startswith("start_raid_"):
-        await start_raid(update, context)
-    elif data == "show_achievements":
-        await show_achievements(update, context)
-    elif data == "start_battle":
-        await start_battle(update, context)
-    elif data == "attack_enemy":
-        await attack_enemy(update, context)
-    elif data == "heal_self":
-        await heal_self(update, context)
-    elif data == "flee_battle":
-        await flee_battle(update, context)
-    elif data == "show_pvp":
-        await show_pvp(update, context)
-    elif data == "main_menu":
-        await main_menu(update, context)
-
-if __name__ == "__main__":
-    app = ApplicationBuilder().token(TOKEN).build()
-    
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CallbackQueryHandler(button_handler))
-    
-    logger.info("✅ Бот запущен!")
-    app.run_polling()
+        await show

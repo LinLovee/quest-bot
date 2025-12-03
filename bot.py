@@ -756,7 +756,7 @@ def setup_handlers(application):
 
 import os
 
-if name == "__main__":
+if __name__ == "__main__":
     TOKEN = os.getenv("TOKEN")
     if not TOKEN:
         raise RuntimeError("Переменная окружения TOKEN не задана")

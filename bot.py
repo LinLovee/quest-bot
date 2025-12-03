@@ -1211,44 +1211,53 @@ async def equip_item_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
-    
+
     item_id = query.data.split("_")[1]
     item_info = EQUIPMENT_ITEMS.get(item_id)
-    
+
     if not item_info:
         await query.answer("❌ Предмет не найден!", show_alert=True)
         return
-    
+
     if equip_item(chat_id, user.id, item_id):
-        text = f"✅ Экипировано: {item_info['emoji']} {item_info['name']}\n\n🛡️ ЭКИПИРОВКА\n{'─' * 35}\n\n"
-        
+        # Успешно экипировано
+        stat_type = "атаки" if item_info["type"] == "weapon" else "защиты"
+        stat_value = item_info.get("attack", 0) if item_info["type"] == "weapon" else item_info.get("defense", 0)
+
+        text = (
+            f"✅ УСПЕШНО ЭКИПИРОВАНО!\n\n"
+            f"{item_info['emoji']} {item_info['name']}\n\n"
+            f"Получен бонус:\n"
+            f"+{stat_value} {stat_type}\n\n"
+            f"🛡️ ЭКИПИРОВКА\n"
+            f"{'─' * 35}\n\n"
+        )
+
         player = get_player(chat_id, user.id)
         class_info = CLASSES[player["class"]]
-        
+
         equipped_weapon = None
         equipped_armor = None
-        
+
         if player["equipped_weapon"]:
             equipped_weapon = EQUIPMENT_ITEMS.get(player["equipped_weapon"])
         if player["equipped_armor"]:
             equipped_armor = EQUIPMENT_ITEMS.get(player["equipped_armor"])
-        
+
         text += f"⚔️ ОРУЖИЕ:\n"
-        
         if equipped_weapon:
-            text += f"  ✅ {equipped_weapon['name']} (+{equipped_weapon.get('attack', 0)} атаки)\n"
+            text += f" ✅ {equipped_weapon['name']} (+{equipped_weapon.get('attack', 0)} атаки)\n"
         else:
-            text += "  ❌ Нет оружия\n"
-        
+            text += " ❌ Нет оружия\n"
+
         text += f"\n🛡️ БРОНЯ:\n"
-        
         if equipped_armor:
-            text += f"  ✅ {equipped_armor['name']} (+{equipped_armor.get('defense', 0)} защиты)\n"
+            text += f" ✅ {equipped_armor['name']} (+{equipped_armor.get('defense', 0)} защиты)\n"
         else:
-            text += "  ❌ Нет брони\n"
-        
+            text += " ❌ Нет брони\n"
+
         text += f"\n📊 СТАТЫ:\n⚔️ Атака: {player['attack']}\n🛡️ Защита: {player['defense']}"
-        
+
         keyboard = [
             [InlineKeyboardButton("⚔️ ОРУЖИЕ", callback_data="equipment_weapons"), InlineKeyboardButton("🛡️ БРОНЯ", callback_data="equipment_armor")],
             [InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")],
@@ -1256,8 +1265,9 @@ async def equip_item_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     else:
         text = "❌ Не удалось экипировать предмет"
         keyboard = [[InlineKeyboardButton("⬅️ НАЗАД", callback_data="show_equipment")]]
-    
+
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
 
 async def show_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2074,6 +2084,203 @@ async def raid_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
+async def start_battle_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat_id = query.message.chat_id
+
+    player = get_player(chat_id, user.id)
+    enemy_id = start_battle_db(chat_id, user.id)
+
+    if not enemy_id:
+        await query.answer("❌ Не удалось начать бой!", show_alert=True)
+        return
+
+    enemy_info = ENEMIES[enemy_id]
+    pet = get_player_pet(chat_id, user.id)
+    pet_info = PETS[pet["pet_id"]]
+
+    enemy_health = enemy_info["health"] + player["level"] - 1 * 5
+    player_health = player["health"]
+
+    update_battle(chat_id, user.id, enemy_health, player_health)
+
+    text = (
+        f"⚔️ БОЙ\n"
+        f"{'─' * 35}\n\n"
+        f"👤 Твоё здоровье: {player_health}/{player['max_health']} HP\n"
+        f"{pet_info['emoji']} Питомец: {pet_info['name']}\n\n"
+        f"{enemy_info['emoji']} {enemy_info['name']}\n"
+        f"HP: {enemy_health} HP\n"
+        f"⚔️ Атака: {enemy_info['damage']}\n\n"
+        f"Выбери действие!"
+    )
+
+    keyboard = [
+        [InlineKeyboardButton("⚔️ АТАКОВАТЬ", callback_data="attack_enemy"), InlineKeyboardButton("🏥 ИСЦЕЛИТЬСЯ", callback_data="heal_self")],
+        [InlineKeyboardButton("❌ СБЕЖАТЬ", callback_data="flee_battle")]
+    ]
+
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def attack_enemy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat_id = query.message.chat_id
+
+    player = get_player(chat_id, user.id)
+    battle = get_battle(chat_id, user.id)
+
+    if not battle:
+        await query.answer("❌ Боя нет!", show_alert=True)
+        return
+
+    enemy_info = ENEMIES[battle["enemy_id"]]
+    pet = get_player_pet(chat_id, user.id)
+    pet_info = PETS[pet["pet_id"]]
+
+    player_damage = player["attack"] + pet_info["damage_bonus"] + random.randint(-2, 5)
+    enemy_damage = enemy_info["damage"] + random.randint(-1, 3)
+
+    new_enemy_health = max(0, battle["enemy_health"] - player_damage)
+    new_player_health = max(0, player["health"] - enemy_damage)
+
+    update_battle(chat_id, user.id, new_enemy_health, new_player_health)
+
+    cursor.execute(
+        'UPDATE players SET health=? WHERE chat_id=? AND user_id=?',
+        (new_player_health, chat_id, user.id)
+    )
+    conn.commit()
+
+    text = (
+        f"⚔️ АТАКА\n"
+        f"{'─' * 35}\n\n"
+        f"💥 Ты нанёс {player_damage} урона!\n"
+        f"-{enemy_damage} HP (атака врага)\n\n"
+        f"👤 Твоё здоровье: {new_player_health}/{player['max_health']} HP\n"
+        f"{enemy_info['emoji']} Здоровье врага: {new_enemy_health} HP"
+    )
+
+    if new_enemy_health <= 0:
+        xp_reward = int(enemy_info["xp"] * 1.2)
+        gold_reward = enemy_info["gold"]
+
+        add_xp(chat_id, user.id, user.first_name, xp_reward)
+        add_gold(chat_id, user.id, gold_reward)
+        add_kill(chat_id, user.id)
+
+        if enemy_info.get("is_boss"):
+            add_boss_kill(chat_id, user.id)
+
+        for loot_item in enemy_info.get("loot", []):
+            add_item(chat_id, user.id, loot_item)
+            if loot_item in MATERIALS:
+                add_material(chat_id, user.id, loot_item)
+
+        end_battle(chat_id, user.id)
+
+        loot_text = ""
+        for item in enemy_info.get("loot", []):
+            loot_text += f"{ITEMS.get(item, {}).get('emoji', '?')} {ITEMS.get(item, {}).get('name', item)}\n"
+
+        text = (
+            f"🎉 ПОБЕДА!\n"
+            f"{'─' * 35}\n\n"
+            f"{enemy_info['emoji']} {enemy_info['name']} побеждён!\n\n"
+            f"📊 НАГРАДА:\n"
+            f"+{xp_reward} XP\n"
+            f"+{gold_reward} 💰\n\n"
+            f"📦 ЛУТ:\n{loot_text}"
+        )
+
+        keyboard = [
+            [InlineKeyboardButton("⚔️ НОВЫЙ БОЙ", callback_data="start_battle")],
+            [InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]
+        ]
+    elif new_player_health <= 0:
+        end_battle(chat_id, user.id)
+
+        cursor.execute(
+            'UPDATE players SET health=? WHERE chat_id=? AND user_id=?',
+            (player["max_health"], chat_id, user.id)
+        )
+        conn.commit()
+
+        text = (
+            f"💀 ПОРАЖЕНИЕ\n"
+            f"{'─' * 35}\n\n"
+            f"Ты был побеждён {enemy_info['emoji']} {enemy_info['name']}...\n\n"
+            f"Твоё здоровье полностью восстановлено."
+        )
+
+        keyboard = [
+            [InlineKeyboardButton("⚔️ НОВЫЙ БОЙ", callback_data="start_battle")],
+            [InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]
+        ]
+    else:
+        keyboard = [
+            [InlineKeyboardButton("⚔️ АТАКОВАТЬ", callback_data="attack_enemy"), InlineKeyboardButton("🏥 ИСЦЕЛИТЬСЯ", callback_data="heal_self")],
+            [InlineKeyboardButton("❌ СБЕЖАТЬ", callback_data="flee_battle")]
+        ]
+
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def pvp_find_opponent(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat_id = query.message.chat_id
+
+    player = get_player(chat_id, user.id)
+
+    if chat_id not in pvp_queue:
+        pvp_queue[chat_id] = {}
+
+    for waiting_user_id, waiting_player in pvp_queue[chat_id].items():
+        if waiting_user_id != user.id:
+            if abs(waiting_player["level"] - player["level"]) <= 3:
+                pvp_queue[chat_id].pop(waiting_user_id)
+
+                text = f"✅ Найден противник: {waiting_player['name']} (Ур. {waiting_player['level']})...\n\nБой начинается!"
+
+                keyboard = [[InlineKeyboardButton("⚔️ НАЧАТЬ ПВП", callback_data=f"pvp_battle_{user.id}_{waiting_user_id}")]]
+
+                await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+                return
+
+    pvp_queue[chat_id][user.id] = {
+        "name": user.first_name,
+        "level": player["level"],
+        "user_id": user.id,
+        "message_id": query.message.message_id
+    }
+
+    text = f"🔍 Поиск противника...\n\n⭐ Уровень: {player['level']}\n📊 Рейтинг: {get_pvp_stats(chat_id, user.id)['rating']}\n\n⏳ Жди до 3 минут..."
+
+    keyboard = [
+        [InlineKeyboardButton("🔍 ИСКАТЬ", callback_data="pvp_find_opponent")],
+        [InlineKeyboardButton("❌ ОТМЕНА", callback_data="pvp_cancel")]
+    ]
+
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def pvp_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat_id = query.message.chat_id
+
+    if chat_id in pvp_queue and user.id in pvp_queue[chat_id]:
+        pvp_queue[chat_id].pop(user.id)
+
+    text = "❌ Поиск отменён"
+
+    keyboard = [[InlineKeyboardButton("🏟️ PVP", callback_data="show_pvp")]]
+
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
 async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
@@ -2101,6 +2308,12 @@ async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     
     await query.edit_message_text(reply_text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def pvp_battle_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Заглушка для функции ПВП боя - может быть расширена в будущем"""
+    query = update.callback_query
+    await query.answer("🏟️ ПВП боя: функция в разработке!", show_alert=False)
+
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query

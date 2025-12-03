@@ -754,6 +754,8 @@ def setup_handlers(application):
 
     logger.info("Quest Bot Premium готов!")
 
+import os
+
 if name == "__main__":
     TOKEN = os.getenv("TOKEN")
     if not TOKEN:

@@ -1243,7 +1243,7 @@ async def equipment_armor(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def equip_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def equip_item_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
@@ -1256,8 +1256,39 @@ async def equip_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if equip_item(chat_id, user.id, item_id):
-        text = f"✅ Экипировано: {item_info['emoji']} {item_info['name']}"
-        keyboard = [[InlineKeyboardButton("🛡️ ЭКИПИРОВКА", callback_data="show_equipment")]]
+        text = f"✅ Экипировано: {item_info['emoji']} {item_info['name']}\n\n🛡️ ЭКИПИРОВКА\n{'─' * 35}\n\n"
+        
+        player = get_player(chat_id, user.id)
+        class_info = CLASSES[player["class"]]
+        
+        equipped_weapon = None
+        equipped_armor = None
+        
+        if player["equipped_weapon"]:
+            equipped_weapon = EQUIPMENT_ITEMS.get(player["equipped_weapon"])
+        if player["equipped_armor"]:
+            equipped_armor = EQUIPMENT_ITEMS.get(player["equipped_armor"])
+        
+        text += f"⚔️ ОРУЖИЕ:\n"
+        
+        if equipped_weapon:
+            text += f"  ✅ {equipped_weapon['name']} (+{equipped_weapon.get('attack', 0)} атаки)\n"
+        else:
+            text += "  ❌ Нет оружия\n"
+        
+        text += f"\n🛡️ БРОНЯ:\n"
+        
+        if equipped_armor:
+            text += f"  ✅ {equipped_armor['name']} (+{equipped_armor.get('defense', 0)} защиты)\n"
+        else:
+            text += "  ❌ Нет брони\n"
+        
+        text += f"\n📊 СТАТЫ:\n⚔️ Атака: {player['attack']}\n🛡️ Защита: {player['defense']}"
+        
+        keyboard = [
+            [InlineKeyboardButton("⚔️ ОРУЖИЕ", callback_data="equipment_weapons"), InlineKeyboardButton("🛡️ БРОНЯ", callback_data="equipment_armor")],
+            [InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")],
+        ]
     else:
         text = "❌ Не удалось экипировать предмет"
         keyboard = [[InlineKeyboardButton("⬅️ НАЗАД", callback_data="show_equipment")]]
@@ -2148,7 +2179,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "equipment_armor":
         await equipment_armor(update, context)
     elif data.startswith("equip_"):
-        await equip_item(update, context)
+        await equip_item_handler(update, context)
     elif data == "show_inventory":
         await show_inventory(update, context)
     elif data == "show_shop":
@@ -2229,6 +2260,26 @@ app.add_handler(CommandHandler("start", start_command))
 app.add_handler(CallbackQueryHandler(button_handler))
 
 logger.info("✅ Обработчики добавлены!")
+
+
+async def health_check_handler(request):
+    """Простой health check endpoint для Render"""
+    return web.Response(text="OK", status=200)
+
+async def start_health_server(port=8000):
+    """Запустить простой HTTP сервер для health checks"""
+    app_health = web.Application()
+    app_health.router.add_get("/health", health_check_handler)
+    app_health.router.add_get("/", health_check_handler)
+    app_health.router.add_head("/", health_check_handler)
+    
+    runner = web.AppRunner(app_health)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    
+    logger.info(f"✅ Health check сервер запущен на порту {port}")
+    return runner
 
 async def cleanup_before_start():
     """
@@ -2330,20 +2381,37 @@ if __name__ == "__main__":
         logger.info("🚀 Запуск в режиме POLLING...")
         logger.info("ℹ️ ВАЖНО: В режиме POLLING может быть только один экземпляр!")
         
+        async def polling_with_health():
+            """Запустить polling с health check сервером"""
+            health_runner = await start_health_server(WEBHOOK_PORT)
+            logger.info(f"✅ Health check сервер успешно запущен на порту {WEBHOOK_PORT}")
+            
+            try:
+                logger.info("✅ Начинаем polling...")
+                await app.run_polling(
+                    drop_pending_updates=True,
+                    allowed_updates=[],
+                    poll_interval=1.0,
+                    timeout=30,
+                )
+            except KeyboardInterrupt:
+                logger.info("⏹️ Бот остановлен пользователем")
+            except asyncio.CancelledError:
+                logger.info("⏹️ Задача отменена")
+            except Exception as e:
+                logger.error(f"❌ Ошибка в режиме POLLING: {e}")
+                if "Conflict" in str(e) or "getUpdates" in str(e):
+                    logger.error("🔴 ОШИБКА КОНФЛИКТА: Запущено несколько экземпляров бота!")
+                    logger.error("Решение: Остановите все экземпляры и создайте новый токен в BotFather")
+                raise
+            finally:
+                await health_runner.cleanup()
+                logger.info("✅ Health check сервер остановлен")
+        
         try:
-            asyncio.run(app.run_polling(
-                drop_pending_updates=True,
-                allowed_updates=[],  # Accept all update types
-                poll_interval=1.0,
-                timeout=30,
-            ))
+            asyncio.run(polling_with_health())
         except KeyboardInterrupt:
             logger.info("⏹️ Бот остановлен пользователем")
-        except asyncio.CancelledError:
-            logger.info("⏹️ Задача отменена")
         except Exception as e:
-            logger.error(f"❌ Ошибка в режиме POLLING: {e}")
-            if "Conflict" in str(e) or "getUpdates" in str(e):
-                logger.error("🔴 ОШИБКА КОНФЛИКТА: Запущено несколько экземпляров бота!")
-                logger.error("Решение: Остановите все экземпляры и создайте новый токен в BotFather")
+            logger.error(f"❌ Критическая ошибка: {e}")
             raise

@@ -6,7 +6,6 @@ import threading
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
-from flask import Flask
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -950,12 +949,11 @@ async def attack_enemy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         add_kill(chat_id, user.id)
         
         if enemy_info.get('is_boss'):
-            add_boss_kill(chat_id, user.id)
+            cursor.execute('UPDATE players SET total_bosses_killed = total_bosses_killed + 1 WHERE chat_id=? AND user_id=?', (chat_id, user.id))
+            conn.commit()
         
         for loot_item in enemy_info.get('loot', []):
             add_item(chat_id, user.id, loot_item)
-            if loot_item in MATERIALS:
-                add_material(chat_id, user.id, loot_item)
         
         end_battle(chat_id, user.id)
         loot_text = ""

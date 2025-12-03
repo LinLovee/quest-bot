@@ -2395,21 +2395,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def get_token():
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token or token.strip() == "":
-        logger.error("❌ ОШИБКА: Токен не найден в переменных окружения!")
+        logger.error("❌ ОШИБКА: Токен не найден!")
         raise ValueError("TELEGRAM_BOT_TOKEN не установлена!")
-    if len(token.strip()) < 10:
-        logger.error(f"❌ ОШИБКА: Токен слишком короткий: {token[:5]}...")
-        raise ValueError("Токен некорректный!")
-    logger.info(f"✅ Токен загружен успешно: {token[:20]}...")
     return token.strip()
 
 TOKEN = get_token()
 
 try:
     app = ApplicationBuilder().token(TOKEN).build()
-    logger.info("✅ Приложение успешно создано!")
+    logger.info("✅ Приложение создано!")
 except Exception as e:
-    logger.error(f"❌ Ошибка при создании приложения: {e}")
+    logger.error(f"❌ Ошибка: {e}")
     raise
 
 app.add_handler(CommandHandler("start", start_command))
@@ -2417,47 +2413,57 @@ app.add_handler(CallbackQueryHandler(button_handler))
 
 logger.info("✅ Обработчики добавлены!")
 
-# ========== HTTP СЕРВЕР ДЛЯ RENDER.COM В ОТДЕЛЬНОМ ПОТОКЕ ==========
-def health_check_handler(request):
+# ========== WEBHOOK ДЛЯ RENDER.COM ==========
+async def health_check(request):
     return web.Response(text="OK", status=200)
 
-def start_http_server_thread():
-    """HTTP сервер в отдельном потоке"""
-    async def run_server():
-        web_app = web.Application()
-        web_app.router.add_get("/", health_check_handler)
-        web_app.router.add_get("/health", health_check_handler)
+async def webhook_handler(request):
+    """Обработчик вебхука от Telegram"""
+    try:
+        data = await request.json()
+        update = Update.de_json(data, app.bot)
+        await app.process_update(update)
+        return web.Response(status=200)
+    except Exception as e:
+        logger.error(f"❌ Ошибка вебхука: {e}")
+        return web.Response(status=500)
 
-        runner = web.AppRunner(web_app)
-        await runner.setup()
-        site = web.TCPSite(runner, "0.0.0.0", 8000)
-        await site.start()
-        logger.info("✅ HTTP сервер запущен на порту 8000")
+async def start_webhook_server():
+    """Запуск вебхука"""
+    # Регистрируем роуты
+    web_app = web.Application()
+    web_app.router.add_post('/webhook', webhook_handler)
+    web_app.router.add_get('/health', health_check)
 
-        # Держим сервер работающим
-        try:
-            await asyncio.sleep(float('inf'))
-        except:
-            await runner.cleanup()
+    # Запускаем вебхук
+    runner = web.AppRunner(web_app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 8000)
+    await site.start()
+    logger.info("✅ Вебхук запущен на порту 8000")
 
-    # Запускаем async loop в отдельном потоке
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(run_server())
+    # Инициализируем приложение
+    await app.initialize()
+
+    # Устанавливаем вебхук на Telegram
+    webhook_url = "https://quest-bot-1eiw.onrender.com/webhook"
+    await app.bot.set_webhook(webhook_url, drop_pending_updates=True)
+    logger.info(f"✅ Вебхук установлен: {webhook_url}")
+
+    # Держим сервер работающим
+    try:
+        await asyncio.sleep(float('inf'))
+    except:
+        await runner.cleanup()
+        await app.shutdown()
 
 if __name__ == "__main__":
-    logger.info("🚀 Запуск бота с HTTP сервером...")
+    logger.info("🚀 Запуск бота с вебхуком...")
     logger.info("📡 Порт: 8000 (для Render.com)")
 
-    # Запускаем HTTP сервер в отдельном потоке
-    http_thread = threading.Thread(target=start_http_server_thread, daemon=True)
-    http_thread.start()
-    logger.info("✅ HTTP поток запущен")
-
-    # Запускаем бота в главном потоке
     try:
-        app.run_polling(drop_pending_updates=True, allowed_updates=[])
+        asyncio.run(start_webhook_server())
     except KeyboardInterrupt:
-        logger.info("⏹️ Бот остановлен пользователем")
+        logger.info("⏹️ Бот остановлен")
     except Exception as e:
-        logger.error(f"❌ Критическая ошибка: {e}")
+        logger.error(f"❌ Ошибка: {e}")

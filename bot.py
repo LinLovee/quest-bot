@@ -2417,34 +2417,46 @@ app.add_handler(CallbackQueryHandler(button_handler))
 
 logger.info("✅ Обработчики добавлены!")
 
-# ========== HTTP СЕРВЕР ДЛЯ RENDER.COM ==========
-async def health_check(request):
+# ========== HTTP СЕРВЕР ДЛЯ RENDER.COM В ОТДЕЛЬНОМ ПОТОКЕ ==========
+def health_check_handler(request):
     return web.Response(text="OK", status=200)
 
-async def start_http_server():
-    web_app = web.Application()
-    web_app.router.add_get("/", health_check)
-    web_app.router.add_get("/health", health_check)
+def start_http_server_thread():
+    """HTTP сервер в отдельном потоке"""
+    async def run_server():
+        web_app = web.Application()
+        web_app.router.add_get("/", health_check_handler)
+        web_app.router.add_get("/health", health_check_handler)
 
-    runner = web.AppRunner(web_app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 8000)
-    await site.start()
-    logger.info("✅ HTTP сервер запущен на порту 8000")
+        runner = web.AppRunner(web_app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", 8000)
+        await site.start()
+        logger.info("✅ HTTP сервер запущен на порту 8000")
 
-    try:
-        # Бот работает параллельно
-        await app.run_polling(drop_pending_updates=True, allowed_updates=[])
-    except Exception as e:
-        logger.error(f"❌ Ошибка бота: {e}")
-    finally:
-        await runner.cleanup()
+        # Держим сервер работающим
+        try:
+            await asyncio.sleep(float('inf'))
+        except:
+            await runner.cleanup()
+
+    # Запускаем async loop в отдельном потоке
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(run_server())
 
 if __name__ == "__main__":
     logger.info("🚀 Запуск бота с HTTP сервером...")
     logger.info("📡 Порт: 8000 (для Render.com)")
+
+    # Запускаем HTTP сервер в отдельном потоке
+    http_thread = threading.Thread(target=start_http_server_thread, daemon=True)
+    http_thread.start()
+    logger.info("✅ HTTP поток запущен")
+
+    # Запускаем бота в главном потоке
     try:
-        asyncio.run(start_http_server())
+        app.run_polling(drop_pending_updates=True, allowed_updates=[])
     except KeyboardInterrupt:
         logger.info("⏹️ Бот остановлен пользователем")
     except Exception as e:

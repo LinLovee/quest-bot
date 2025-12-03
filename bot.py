@@ -2230,6 +2230,38 @@ app.add_handler(CallbackQueryHandler(button_handler))
 
 logger.info("✅ Обработчики добавлены!")
 
+async def cleanup_before_start():
+    """Cleanup: delete webhook, drop pending updates, ensure single instance"""
+    try:
+        await app.bot.delete_webhook(drop_pending_updates=True)
+        logger.info("✅ Вебхук удалён, ожидающие обновления очищены")
+    except Exception as e:
+        logger.warning(f"⚠️ Ошибка при удалении вебхука: {e}")
+    
+    try:
+        webhook_info = await app.bot.get_webhook_info()
+        if webhook_info.url:
+            logger.warning(f"⚠️ Вебхук всё ещё установлен: {webhook_info.url}")
+            logger.warning(f"   Ожидающих обновлений: {webhook_info.pending_update_count}")
+    except Exception as e:
+        logger.warning(f"⚠️ Ошибка при проверке вебхука: {e}")
+
+async def cleanup_before_start():
+    """Cleanup: delete webhook, drop pending updates, ensure single instance"""
+    try:
+        await app.bot.delete_webhook(drop_pending_updates=True)
+        logger.info("✅ Вебхук удалён, ожидающие обновления очищены")
+    except Exception as e:
+        logger.warning(f"⚠️ Ошибка при удалении вебхука: {e}")
+    
+    try:
+        webhook_info = await app.bot.get_webhook_info()
+        if webhook_info.url:
+            logger.warning(f"⚠️ Вебхук всё ещё установлен: {webhook_info.url}")
+            logger.warning(f"   Ожидающих обновлений: {webhook_info.pending_update_count}")
+    except Exception as e:
+        logger.warning(f"⚠️ Ошибка при проверке вебхука: {e}")
+
 if __name__ == "__main__":
     if WEBHOOK_URL:
         logger.info(f"🚀 Запуск в режиме WEBHOOK: {WEBHOOK_URL}")
@@ -2241,8 +2273,10 @@ if __name__ == "__main__":
             return web.Response(text="OK")
 
         async def main():
+            await cleanup_before_start()
+            
             try:
-                await app.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
+                await app.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook", drop_pending_updates=True)
                 logger.info(f"✅ Вебхук установлен: {WEBHOOK_URL}/webhook")
             except Exception as e:
                 logger.error(f"❌ Ошибка при установке вебхука: {e}")
@@ -2266,4 +2300,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     else:
         logger.info("🚀 Запуск в режиме POLLING...")
-        asyncio.run(app.run_polling())
+        asyncio.run(app.run_polling(drop_pending_updates=True))

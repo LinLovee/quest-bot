@@ -274,6 +274,8 @@ ITEMS = {
     "eternal_essence": {"name": "Вечная сущность", "rarity": "legendary", "emoji": "✨"},
     "king_crown": {"name": "Корона Короля", "rarity": "legendary", "emoji": "👑"},
     "eternal_staff": {"name": "Вечный посох", "rarity": "legendary", "emoji": "🔮"},
+    "iron_sword": {"name": "Железный меч", "rarity": "uncommon", "emoji": "⚔️"},
+    "mana_potion": {"name": "Зелье маны", "rarity": "common", "emoji": "💙"},
 }
 
 MATERIALS = {
@@ -774,7 +776,6 @@ def update_pvp_stats(chat_id, user_id, win=True):
 
 @safe_db_execute
 def start_battle_db(chat_id, user_id):
-    """Функция БД для создания боя - возвращает enemy_id (строку)"""
     cursor.execute('DELETE FROM battles WHERE chat_id=? AND user_id=?', (chat_id, user_id))
     
     enemy_id = random.choice(list(ENEMIES.keys()))
@@ -809,8 +810,7 @@ def end_battle(chat_id, user_id):
     conn.commit()
 
 @safe_db_execute
-def start_raid_db(chat_id, user_id, raid_id):
-    """Функция БД для создания рейда"""
+def start_raid(chat_id, user_id, raid_id):
     cursor.execute('DELETE FROM raids WHERE chat_id=? AND user_id=? AND raid_id=?', (chat_id, user_id, raid_id))
     cursor.execute(
         'INSERT INTO raids VALUES (?, ?, ?, ?, ?)',
@@ -1359,7 +1359,7 @@ async def show_achievements(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"   {progress}/{target}\n\n"
         achievement_count += 1
         
-        if achievement_count >= 5:
+        if achievement_count >= 8:
             break
     
     keyboard = [[InlineKeyboardButton("⬅️ НАЗАД", callback_data="main_menu")]]
@@ -1367,24 +1367,16 @@ async def show_achievements(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def start_battle_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Async обработчик callback для начала боя"""
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
     
     player = get_player(chat_id, user.id)
     
-    if not player:
-        await query.answer("❌ Персонаж не найден!", show_alert=True)
-        return
-    
-    # Вызываем функцию БД (НЕ async, БЕЗ await)
     enemy_id = start_battle_db(chat_id, user.id)
-    
-    if not enemy_id or enemy_id not in ENEMIES:
-        await query.answer("❌ Ошибка создания боя!", show_alert=True)
+    if not enemy_id:
+        await query.answer("❌ Ошибка при начале боя", show_alert=True)
         return
-    
     enemy_info = ENEMIES[enemy_id]
     pet = get_player_pet(chat_id, user.id)
     pet_info = PETS[pet["pet_id"]]
@@ -1394,7 +1386,7 @@ async def start_battle_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_battle(chat_id, user.id, enemy_health, player["health"])
     
     text = (
-        f"⚔️ БОЙ НАЧАЛСЯ!\n\n"
+        f"⚔️ БОЙ НАЧАЛАСЬ!\n\n"
         f"👤 Ты: {player['health']}/{player['max_health']} HP\n"
         f"{enemy_info['emoji']} {enemy_info['name']}: {enemy_health} HP\n\n"
         f"🐾 Питомец: {pet_info['emoji']} {pet_info['name']}"
@@ -1617,7 +1609,6 @@ async def show_pvp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def start_raid_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Async обработчик callback для начала рейда"""
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
@@ -1629,9 +1620,7 @@ async def start_raid_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     raid_info = RAIDS[raid_id]
-    
-    # Вызываем функцию БД (НЕ async, БЕЗ await)
-    start_raid_db(chat_id, user.id, raid_id)
+    start_raid(chat_id, user.id, raid_id)
     
     text = (
         f"🏰 {raid_info['name'].upper()}\n\n"
@@ -1699,4 +1688,73 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "show_quests":
         await show_quests(update, context)
     elif data == "show_weekly_quests":
-        await show
+        await show_weekly_quests(update, context)
+    elif data.startswith("complete_quest_"):
+        await complete_daily_quest(update, context)
+    elif data == "show_skills":
+        await show_skills(update, context)
+    elif data.startswith("learn_skill_"):
+        await learn_skill(update, context)
+    elif data == "show_crafting":
+        await show_crafting(update, context)
+    elif data.startswith("craft_"):
+        await craft_item(update, context)
+    elif data == "show_raids":
+        await show_raids(update, context)
+    elif data.startswith("start_raid_"):
+        await start_raid_cmd(update, context)
+    elif data == "show_achievements":
+        await show_achievements(update, context)
+    elif data == "start_battle":
+        await start_battle_cmd(update, context)
+    elif data == "attack_enemy":
+        await attack_enemy(update, context)
+    elif data == "heal_self":
+        await heal_self(update, context)
+    elif data == "flee_battle":
+        await flee_battle(update, context)
+    elif data == "show_pvp":
+        await show_pvp(update, context)
+    elif data == "main_menu":
+        await main_menu(update, context)
+
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", 8000))
+
+app = ApplicationBuilder().token(TOKEN).build()
+
+app.add_handler(CommandHandler("start", start_command))
+app.add_handler(CallbackQueryHandler(button_handler))
+
+logger.info("✅ Бот запущен!")
+
+if __name__ == "__main__":
+    if WEBHOOK_URL:
+        async def webhook_handler(request):
+            data = await request.json()
+            update = Update.de_json(data, app.bot)
+            await app.process_update(update)
+            return web.Response(text="OK")
+
+        async def main():
+            await app.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
+            
+            app_web = web.Application()
+            app_web.router.add_post("/webhook", webhook_handler)
+            
+            runner = web.AppRunner(app_web)
+            await runner.setup()
+            site = web.TCPSite(runner, "0.0.0.0", WEBHOOK_PORT)
+            await site.start()
+            
+            print(f"Бот запущен на вебхуке: {WEBHOOK_URL}")
+            
+            try:
+                await asyncio.Event().wait()
+            except KeyboardInterrupt:
+                await runner.cleanup()
+        
+        asyncio.run(main())
+    else:
+        asyncio.run(app.run_polling())

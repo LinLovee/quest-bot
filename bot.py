@@ -1749,7 +1749,7 @@ async def webhook_handler(request):
     await app.process_update(update)
     return web.Response(text="OK")
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TOKEN = os.getenv("8459803957:AAExB3Q5b9iYxIG0YcALsc_kFz2aE3ZWVbQ")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", 8000))
 

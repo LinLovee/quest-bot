@@ -2231,10 +2231,16 @@ app.add_handler(CallbackQueryHandler(button_handler))
 logger.info("✅ Обработчики добавлены!")
 
 async def cleanup_before_start():
-    """Cleanup: delete webhook, drop pending updates, ensure single instance"""
+    """
+    Cleanup: delete webhook and polling sessions to ensure only one instance runs.
+    Critical for Render deployments where multiple instances may start.
+    """
+    logger.info("🔧 Выполняю очистку перед запуском...")
+    
     try:
         await app.bot.delete_webhook(drop_pending_updates=True)
         logger.info("✅ Вебхук удалён, ожидающие обновления очищены")
+        await asyncio.sleep(1)
     except Exception as e:
         logger.warning(f"⚠️ Ошибка при удалении вебхука: {e}")
     
@@ -2243,43 +2249,56 @@ async def cleanup_before_start():
         if webhook_info.url:
             logger.warning(f"⚠️ Вебхук всё ещё установлен: {webhook_info.url}")
             logger.warning(f"   Ожидающих обновлений: {webhook_info.pending_update_count}")
+            
+            await app.bot.delete_webhook(drop_pending_updates=True)
+            await asyncio.sleep(2)
+        else:
+            logger.info("✅ Вебхук успешно удалён")
     except Exception as e:
         logger.warning(f"⚠️ Ошибка при проверке вебхука: {e}")
-
-async def cleanup_before_start():
-    """Cleanup: delete webhook, drop pending updates, ensure single instance"""
-    try:
-        await app.bot.delete_webhook(drop_pending_updates=True)
-        logger.info("✅ Вебхук удалён, ожидающие обновления очищены")
-    except Exception as e:
-        logger.warning(f"⚠️ Ошибка при удалении вебхука: {e}")
     
     try:
-        webhook_info = await app.bot.get_webhook_info()
-        if webhook_info.url:
-            logger.warning(f"⚠️ Вебхук всё ещё установлен: {webhook_info.url}")
-            logger.warning(f"   Ожидающих обновлений: {webhook_info.pending_update_count}")
+        updates = await app.bot.get_updates(offset=-1, timeout=1)
+        logger.info(f"✅ Сброс обновлений выполнен (получено {len(updates)} обновлений)")
     except Exception as e:
-        logger.warning(f"⚠️ Ошибка при проверке вебхука: {e}")
+        logger.info(f"ℹ️ Информация о сбросе обновлений: {e}")
+    
+    logger.info("✅ Очистка завершена, готов к запуску")
 
 if __name__ == "__main__":
     if WEBHOOK_URL:
         logger.info(f"🚀 Запуск в режиме WEBHOOK: {WEBHOOK_URL}")
         
         async def webhook_handler(request):
-            data = await request.json()
-            update = Update.de_json(data, app.bot)
-            await app.process_update(update)
-            return web.Response(text="OK")
+            try:
+                data = await request.json()
+                update = Update.de_json(data, app.bot)
+                await app.process_update(update)
+                return web.Response(text="OK")
+            except Exception as e:
+                logger.error(f"❌ Ошибка в webhook_handler: {e}")
+                return web.Response(text="ERROR", status=500)
 
         async def main():
             await cleanup_before_start()
             
             try:
-                await app.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook", drop_pending_updates=True)
+                await app.bot.set_webhook(
+                    url=f"{WEBHOOK_URL}/webhook",
+                    drop_pending_updates=True,
+                    allowed_updates=[]  # Empty list = accept all update types
+                )
                 logger.info(f"✅ Вебхук установлен: {WEBHOOK_URL}/webhook")
+                await asyncio.sleep(1)
             except Exception as e:
                 logger.error(f"❌ Ошибка при установке вебхука: {e}")
+                raise
+            
+            try:
+                webhook_info = await app.bot.get_webhook_info()
+                logger.info(f"ℹ️ Информация о вебхуке: URL={webhook_info.url}, ожидающих={webhook_info.pending_update_count}")
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка при получении информации о вебхуке: {e}")
             
             app_web = web.Application()
             app_web.router.add_post("/webhook", webhook_handler)
@@ -2290,14 +2309,41 @@ if __name__ == "__main__":
             await site.start()
             
             logger.info(f"✅ Веб-сервер запущен на порту {WEBHOOK_PORT}")
+            logger.info("✅ Бот готов к работе (режим WEBHOOK)")
             
             try:
                 await asyncio.Event().wait()
             except KeyboardInterrupt:
                 logger.info("⏹️ Завершение работы...")
                 await runner.cleanup()
+                await app.bot.delete_webhook(drop_pending_updates=True)
+                logger.info("✅ Очистка завершена")
         
-        asyncio.run(main())
+        try:
+            asyncio.run(main())
+        except KeyboardInterrupt:
+            logger.info("⏹️ Бот остановлен пользователем")
+        except Exception as e:
+            logger.error(f"❌ Критическая ошибка: {e}")
+            raise
     else:
         logger.info("🚀 Запуск в режиме POLLING...")
-        asyncio.run(app.run_polling(drop_pending_updates=True))
+        logger.info("ℹ️ ВАЖНО: В режиме POLLING может быть только один экземпляр!")
+        
+        try:
+            asyncio.run(app.run_polling(
+                drop_pending_updates=True,
+                allowed_updates=[],  # Accept all update types
+                poll_interval=1.0,
+                timeout=30,
+            ))
+        except KeyboardInterrupt:
+            logger.info("⏹️ Бот остановлен пользователем")
+        except asyncio.CancelledError:
+            logger.info("⏹️ Задача отменена")
+        except Exception as e:
+            logger.error(f"❌ Ошибка в режиме POLLING: {e}")
+            if "Conflict" in str(e) or "getUpdates" in str(e):
+                logger.error("🔴 ОШИБКА КОНФЛИКТА: Запущено несколько экземпляров бота!")
+                logger.error("Решение: Остановите все экземпляры и создайте новый токен в BotFather")
+            raise

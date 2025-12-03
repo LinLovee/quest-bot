@@ -217,69 +217,45 @@ PETS = {
 
 # ========== ВРАГИ БАЛАНСИРОВКА ПО УРОВНЮ ==========
 ENEMIES = {
-    # Уровень 1-2 (новичков)
     "goblin": {"name": "Гоблин", "emoji": "👹", "level": 1, "health": 15, "damage": 3, "xp": 25, "gold": 10, "loot": ["copper_coin"], "is_boss": False},
     "rat": {"name": "Крыса", "emoji": "🐭", "level": 1, "health": 10, "damage": 2, "xp": 15, "gold": 5, "loot": ["copper_coin"], "is_boss": False},
     "skeleton": {"name": "Скелет", "emoji": "☠️", "level": 2, "health": 25, "damage": 5, "xp": 40, "gold": 20, "loot": ["bone_fragment"], "is_boss": False},
     "zombie": {"name": "Зомби", "emoji": "🧟", "level": 2, "health": 30, "damage": 6, "xp": 50, "gold": 25, "loot": ["rotten_flesh"], "is_boss": False},
     "imp": {"name": "Чертёнок", "emoji": "😈", "level": 2, "health": 20, "damage": 7, "xp": 45, "gold": 15, "loot": ["sulfur"], "is_boss": False},
-    
-    # Уровень 3-4
     "orc": {"name": "Орк", "emoji": "🗡️", "level": 3, "health": 45, "damage": 12, "xp": 100, "gold": 50, "loot": ["iron_ore"], "is_boss": False},
     "troll": {"name": "Тролль", "emoji": "👹", "level": 3, "health": 60, "damage": 11, "xp": 110, "gold": 60, "loot": ["troll_club", "cave_pearl"], "is_boss": False},
     "werewolf": {"name": "Оборотень", "emoji": "🐺", "level": 4, "health": 50, "damage": 15, "xp": 130, "gold": 70, "loot": ["wolf_fur", "silver_coin"], "is_boss": False},
     "shadow_knight": {"name": "Рыцарь Теней", "emoji": "⚔️", "level": 4, "health": 65, "damage": 18, "xp": 150, "gold": 80, "loot": ["dark_crystal", "iron_sword"], "is_boss": False},
     "witch": {"name": "Ведьма", "emoji": "🧙♀️", "level": 4, "health": 40, "damage": 20, "xp": 140, "gold": 75, "loot": ["magic_dust", "cursed_potion"], "is_boss": False},
-    
-    # Уровень 5-6
     "basilisk": {"name": "Василиск", "emoji": "🐍", "level": 5, "health": 100, "damage": 25, "xp": 200, "gold": 120, "loot": ["basilisk_fang", "poison_vial"], "is_boss": False},
     "ice_mage": {"name": "Ледяной маг", "emoji": "❄️", "level": 5, "health": 55, "damage": 28, "xp": 180, "gold": 110, "loot": ["ice_crystal", "mana_potion"], "is_boss": False},
     "demon": {"name": "Демон", "emoji": "😈", "level": 6, "health": 120, "damage": 32, "xp": 250, "gold": 150, "loot": ["demonic_essence", "soul_fragment"], "is_boss": False},
     "golem": {"name": "Голем", "emoji": "🪨", "level": 6, "health": 150, "damage": 20, "xp": 220, "gold": 140, "loot": ["stone_heart", "magical_core"], "is_boss": False},
-    
-    # Боссы (высокий уровень)
     "dragon": {"name": "Дракон", "emoji": "🐉", "level": 7, "health": 200, "damage": 40, "xp": 500, "gold": 300, "loot": ["dragon_scale", "dragon_heart"], "is_boss": True},
     "lich": {"name": "Лич", "emoji": "💀", "level": 8, "health": 180, "damage": 45, "xp": 550, "gold": 350, "loot": ["soul_essence", "lich_staff"], "is_boss": True},
     "archidemon": {"name": "Архидемон", "emoji": "😈", "level": 9, "health": 250, "damage": 50, "xp": 700, "gold": 400, "loot": ["demonic_core", "eternal_essence"], "is_boss": True},
     "lich_king": {"name": "Истинный Лич-Король", "emoji": "👿", "level": 10, "health": 300, "damage": 60, "xp": 1000, "gold": 500, "loot": ["king_crown", "eternal_staff"], "is_boss": True},
 }
 
-# ========== ЭКИПИРОВКА (БЕЗ СТАРТОВЫХ ВЕЩЕЙ) ==========
+# ========== ЭКИПИРОВКА ==========
 EQUIPMENT_ITEMS = {
-    # Оружие Воина
     "iron_sword": {"name": "Железный меч", "emoji": "⚔️", "type": "weapon", "attack": 5, "price": 200, "class": "warrior"},
     "steel_sword": {"name": "Стальной меч", "emoji": "🗡️", "type": "weapon", "attack": 10, "price": 500, "class": "warrior"},
     "legendary_sword": {"name": "Меч Вечности", "emoji": "⚡", "type": "weapon", "attack": 50, "price": 5000, "class": "warrior"},
-    
-    # Броня Воина
     "iron_armor": {"name": "Железная броня", "emoji": "🛡️", "type": "armor", "defense": 4, "price": 250, "class": "warrior"},
     "steel_armor": {"name": "Стальная броня", "emoji": "🛡️", "type": "armor", "defense": 8, "price": 600, "class": "warrior"},
     "legendary_armor": {"name": "Легендарная броня", "emoji": "👑", "type": "armor", "defense": 40, "price": 5000, "class": "warrior"},
-    
-    # Оружие Мага
     "fireball_staff": {"name": "Посох огня", "emoji": "🔥", "type": "weapon", "attack": 8, "price": 200, "class": "mage"},
     "archimage_staff": {"name": "Посох Архимага", "emoji": "🔮", "type": "weapon", "attack": 30, "price": 5000, "class": "mage"},
-    
-    # Броня Мага
     "mage_robe": {"name": "Мантия мага", "emoji": "👗", "type": "armor", "defense": 2, "mana": 20, "price": 150, "class": "mage"},
     "celestial_robe": {"name": "Небесная мантия", "emoji": "✨", "type": "armor", "defense": 5, "mana": 50, "price": 3000, "class": "mage"},
-    
-    # Оружие Разбойника
     "dagger": {"name": "Кинжал", "emoji": "🗡️", "type": "weapon", "attack": 6, "price": 180, "class": "rogue"},
     "shadow_dagger": {"name": "Теневой кинжал", "emoji": "⚫", "type": "weapon", "attack": 15, "price": 1000, "class": "rogue"},
-    
-    # Броня Разбойника
     "shadow_cloak": {"name": "Плащ теней", "emoji": "⚫", "type": "armor", "defense": 3, "price": 220, "class": "rogue"},
     "assassin_armor": {"name": "Броня ассасина", "emoji": "🖤", "type": "armor", "defense": 6, "price": 1500, "class": "rogue"},
-    
-    # Оружие Паладина
     "blessed_mace": {"name": "Святая булава", "emoji": "⛪", "type": "weapon", "attack": 12, "price": 600, "class": "paladin"},
-    
-    # Броня Паладина
     "holy_shield": {"name": "Святой щит", "emoji": "⛪", "type": "armor", "defense": 6, "price": 300, "class": "paladin"},
     "titan_shield": {"name": "Щит Титана", "emoji": "🛡️", "type": "armor", "defense": 40, "price": 5000, "class": "paladin"},
-    
-    # Оружие Рейнджера
     "longbow": {"name": "Длинный лук", "emoji": "🏹", "type": "weapon", "attack": 7, "price": 220, "class": "ranger"},
     "moon_bow": {"name": "Лук Луны", "emoji": "🏹", "type": "weapon", "attack": 40, "price": 5000, "class": "ranger"},
 }
@@ -838,8 +814,8 @@ def update_pvp_stats(chat_id, user_id, win=True):
 def start_battle_db(chat_id, user_id, player_level):
     cursor.execute('DELETE FROM battles WHERE chat_id=? AND user_id=?', (chat_id, user_id))
     
-    # БАЛАНСИРОВКА: подбираем врага примерно того же уровня
     available_enemies = [e for e in ENEMIES.values() if abs(e["level"] - player_level) <= 2]
+    
     if not available_enemies:
         available_enemies = [e for e in ENEMIES.values() if e["level"] <= player_level]
     
@@ -908,7 +884,6 @@ def end_raid(chat_id, user_id, raid_id):
     conn.commit()
 
 # ========== КОМАНДЫ ==========
-
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat_id = update.effective_chat.id
@@ -1063,7 +1038,6 @@ async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pet_info = PETS.get(pet["pet_id"], {})
     class_info = CLASSES[player["class"]]
     bonus = get_equipment_bonus(chat_id, user.id)
-    
     xp_percent = int((player["xp"] / LEVEL_REQUIREMENTS.get(player["level"] + 1, 99999)) * 100)
     
     equipped_weapon = ""
@@ -1104,6 +1078,7 @@ async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += f"{equipped_armor}"
     
     keyboard = [[InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]]
+    
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_pet(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1151,6 +1126,7 @@ async def buy_pet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text += f"Текущий питомец: {PETS[current_pet['pet_id']]['emoji']} {PETS[current_pet['pet_id']]['name']}\n\n"
     
     keyboard = []
+    
     for pet_id, pet_info in PETS.items():
         if pet_id != current_pet['pet_id']:
             affordable = "✅" if player['gold'] >= pet_info['price'] else "❌"
@@ -1160,6 +1136,7 @@ async def buy_pet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )])
     
     keyboard.append([InlineKeyboardButton("⬅️ НАЗАД", callback_data="show_pet")])
+    
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def buy_pet(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1169,14 +1146,17 @@ async def buy_pet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pet_id = query.data.split("_")[2]
     
     pet_info = PETS.get(pet_id)
+    
     if not pet_info:
         await query.answer("❌ Питомец не найден!", show_alert=True)
         return
     
     player = get_player(chat_id, user.id)
+    
     if player["gold"] >= pet_info["price"]:
         subtract_gold(chat_id, user.id, pet_info["price"])
         set_pet(chat_id, user.id, pet_id)
+        
         text = f"✅ Ты получил: {pet_info['emoji']} {pet_info['name']}\n\n-{pet_info['price']} 💰"
         keyboard = [
             [InlineKeyboardButton("🐾 ПИТОМЕЦ", callback_data="show_pet")],
@@ -1237,6 +1217,7 @@ async def equipment_weapons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     player = get_player(chat_id, user.id)
     
     text = "⚔️ ВЫБЕРИТЕ ОРУЖИЕ\n" + f"{'─' * 35}\n\n"
+    
     keyboard = []
     has_weapons = False
     
@@ -1250,6 +1231,7 @@ async def equipment_weapons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += "❌ Нет доступного оружия для вашего класса"
     
     keyboard.append([InlineKeyboardButton("⬅️ НАЗАД", callback_data="show_equipment")])
+    
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def equipment_armor(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1259,6 +1241,7 @@ async def equipment_armor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     player = get_player(chat_id, user.id)
     
     text = "🛡️ ВЫБЕРИТЕ БРОНЮ\n" + f"{'─' * 35}\n\n"
+    
     keyboard = []
     has_armor = False
     
@@ -1272,6 +1255,7 @@ async def equipment_armor(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += "❌ Нет доступной брони для вашего класса"
     
     keyboard.append([InlineKeyboardButton("⬅️ НАЗАД", callback_data="show_equipment")])
+    
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def equip_item_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1281,6 +1265,7 @@ async def equip_item_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     item_id = query.data.split("_")[1]
     
     item_info = EQUIPMENT_ITEMS.get(item_id)
+    
     if not item_info:
         await query.answer("❌ Предмет не найден!", show_alert=True)
         return
@@ -1288,6 +1273,7 @@ async def equip_item_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if equip_item(chat_id, user.id, item_id):
         stat_type = "атаки" if item_info["type"] == "weapon" else "защиты"
         stat_value = item_info.get("attack", 0) if item_info["type"] == "weapon" else item_info.get("defense", 0)
+        
         text = (
             f"✅ УСПЕШНО ЭКИПИРОВАНО!\n\n"
             f"{item_info['emoji']} {item_info['name']}\n\n"
@@ -1299,6 +1285,7 @@ async def equip_item_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         player = get_player(chat_id, user.id)
         class_info = CLASSES[player["class"]]
+        
         equipped_weapon = None
         equipped_armor = None
         
@@ -1349,6 +1336,7 @@ async def show_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += f"{item_info.get('emoji', '?')} {item_info.get('name', item_id)}\n x{qty} {rarity_emoji}\n"
     
     keyboard = [[InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]]
+    
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1363,6 +1351,7 @@ async def show_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text += f"📦 ЗЕЛЬЯ И РАСХОДНИКИ:\n"
     
     keyboard = []
+    
     for item_id, item_info in SHOP_ITEMS.items():
         if item_info["class"] is None:
             affordable = "✅" if player['gold'] >= item_info['price'] else "❌"
@@ -1381,6 +1370,7 @@ async def show_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text += f"потом продавай материалы в крафте!"
     
     keyboard.append([InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")])
+    
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def buy_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1390,6 +1380,7 @@ async def buy_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
     item_id = query.data.split("_")[1]
     
     item_info = SHOP_ITEMS.get(item_id)
+    
     if not item_info:
         await query.answer("❌ Предмет не найден!", show_alert=True)
         return
@@ -1399,6 +1390,7 @@ async def buy_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if player["gold"] >= item_info["price"]:
         if subtract_gold(chat_id, user.id, item_info["price"]):
             add_item(chat_id, user.id, item_id)
+            
             text = f"✅ Ты купил: {item_info['emoji']} {item_info['name']}"
             keyboard = [
                 [InlineKeyboardButton("🛒 К МАГАЗИНУ", callback_data="show_shop")],
@@ -1416,10 +1408,10 @@ async def buy_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     chat_id = query.message.chat_id
-    
     top_players = get_top_players(chat_id, 10)
     
     text = "👑 ТОП 10 ИГРОКОВ\n" + f"{'─' * 35}\n\n"
+    
     for i, (name, level, kills, gold, player_class) in enumerate(top_players, 1):
         class_emoji = CLASSES[player_class]["emoji"]
         text += f"{i}. {class_emoji} {name}\n"
@@ -1429,16 +1421,17 @@ async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = "👑 ТОП 10 ИГРОКОВ\n\n❌ Данных нет"
     
     keyboard = [[InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]]
+    
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_quests(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
-    
     completed = get_daily_quest_progress(chat_id, user.id)
     
     text = "📜 ЕЖЕДНЕВНЫЕ КВЕСТЫ\n" + f"{'─' * 35}\n\n"
+    
     keyboard = []
     
     for quest_id, quest_info in DAILY_QUESTS.items():
@@ -1458,10 +1451,10 @@ async def show_weekly_quests(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
-    
     completed = get_weekly_quest_progress(chat_id, user.id)
     
     text = "📋 ЕЖЕНЕДЕЛЬНЫЕ КВЕСТЫ\n" + f"{'─' * 35}\n\n"
+    
     keyboard = []
     
     for quest_id, quest_info in WEEKLY_QUESTS.items():
@@ -1481,7 +1474,6 @@ async def complete_daily_quest(update: Update, context: ContextTypes.DEFAULT_TYP
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
-    
     parts = query.data.split("_")
     quest_type = parts[2]
     quest_id = parts[3]
@@ -1494,7 +1486,7 @@ async def complete_daily_quest(update: Update, context: ContextTypes.DEFAULT_TYP
         
         text = f"✅ Квест завершён!\n+{quest['reward_xp']} XP\n+{quest['reward_gold']} 💰"
         keyboard = [[InlineKeyboardButton("📜 КВЕСТЫ", callback_data="show_quests"), InlineKeyboardButton("⬅️ МЕНЮ", callback_data="main_menu")]]
-        
+    
     elif quest_type == "weekly" and quest_id in WEEKLY_QUESTS:
         quest = WEEKLY_QUESTS[quest_id]
         add_xp(chat_id, user.id, user.first_name, quest["reward_xp"])
@@ -1503,6 +1495,7 @@ async def complete_daily_quest(update: Update, context: ContextTypes.DEFAULT_TYP
         
         text = f"✅ Квест завершён!\n+{quest['reward_xp']} XP\n+{quest['reward_gold']} 💰"
         keyboard = [[InlineKeyboardButton("📋 КВЕСТЫ", callback_data="show_weekly_quests"), InlineKeyboardButton("⬅️ МЕНЮ", callback_data="main_menu")]]
+    
     else:
         text = "❌ Квест не найден"
         keyboard = [[InlineKeyboardButton("⬅️ МЕНЮ", callback_data="main_menu")]]
@@ -1513,12 +1506,12 @@ async def show_skills(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
-    
     player_skills = get_player_skills(chat_id, user.id)
     player = get_player(chat_id, user.id)
     player_class = player["class"]
     
     text = "⚡ УМЕНИЯ\n" + f"{'─' * 35}\n\n"
+    
     keyboard = []
     
     for skill_id, skill_info in SKILLS.items():
@@ -1531,6 +1524,7 @@ async def show_skills(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 keyboard.append([InlineKeyboardButton(f"↑ {skill_info['emoji']}", callback_data=f"learn_skill_{skill_id}")])
     
     keyboard.append([InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")])
+    
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def learn_skill(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1545,6 +1539,7 @@ async def learn_skill(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if player["gold"] >= cost:
         subtract_gold(chat_id, user.id, cost)
         add_skill(chat_id, user.id, skill_id)
+        
         text = f"✅ Умение улучшено!\n-{cost} 💰"
         keyboard = [[InlineKeyboardButton("⚡ УМЕНИЯ", callback_data="show_skills"), InlineKeyboardButton("⬅️ МЕНЮ", callback_data="main_menu")]]
     else:
@@ -1557,7 +1552,6 @@ async def show_crafting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
-    
     player = get_player(chat_id, user.id)
     materials = get_materials(chat_id, user.id)
     
@@ -1566,7 +1560,6 @@ async def show_crafting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text += f"1. Убивай врагов и собирай МАТЕРИАЛЫ (они в инвентаре)\n"
     text += f"2. Когда будет достаточно материалов - создавай предмет\n"
     text += f"3. Созданные предметы используются для продажи и заработка золота\n\n"
-    
     text += f"⭐ Уровень: {player['level']}\n\n"
     text += f"📦 ВАШ МАТЕРИАЛЫ:\n"
     
@@ -1591,6 +1584,7 @@ async def show_crafting(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 current = materials.get(mat_id, 0)
                 mat_info = MATERIALS.get(mat_id, {})
                 needs += f"{current}/{needed_qty} {mat_info.get('emoji', '?')} "
+                
                 if current < needed_qty:
                     can_craft = False
             
@@ -1606,6 +1600,7 @@ async def show_crafting(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += " ❌ Нет доступных рецептов\n"
     
     keyboard.append([InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")])
+    
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def craft_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1650,10 +1645,10 @@ async def show_raids(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
-    
     player = get_player(chat_id, user.id)
     
     text = "🏰 РЕЙДЫ\n" + f"{'─' * 35}\n\n"
+    
     keyboard = []
     
     for raid_id, raid_info in RAIDS.items():
@@ -1665,13 +1660,13 @@ async def show_raids(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard.append([InlineKeyboardButton(f"Войти {raid_info['emoji']}", callback_data=f"start_raid_{raid_id}")])
     
     keyboard.append([InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")])
+    
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_pvp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
-    
     stats = get_pvp_stats(chat_id, user.id)
     
     rank_info = None
@@ -1704,7 +1699,6 @@ async def pvp_find_opponent(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
-    
     player = get_player(chat_id, user.id)
     
     if chat_id not in pvp_queue:
@@ -1714,8 +1708,10 @@ async def pvp_find_opponent(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if waiting_user_id != user.id:
             if abs(waiting_player["level"] - player["level"]) <= 3:
                 pvp_queue[chat_id].pop(waiting_user_id)
+                
                 text = f"⚔️ НАЙДЕН СОПЕРНИК!\n\n{waiting_player['name']} (Ур. {waiting_player['level']})\n\nБой начинается..."
                 keyboard = [[InlineKeyboardButton("🔄 Обновить", callback_data=f"pvp_battle_{user.id}_{waiting_user_id}")]]
+                
                 await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
                 return
     
@@ -1758,8 +1754,8 @@ async def start_battle_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
-    
     player = get_player(chat_id, user.id)
+    
     if not player:
         await query.answer("❌ Профиль не найден", show_alert=True)
         return
@@ -1774,7 +1770,6 @@ async def start_battle_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pet = get_player_pet(chat_id, user.id)
     pet_info = PETS[pet["pet_id"]]
     
-    # Масштабируем здоровье врага под уровень игрока
     enemy_health = enemy_info["health"] + (player["level"] - enemy_info["level"]) * 5
     player_health = player["health"]
     
@@ -1802,7 +1797,6 @@ async def attack_enemy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
-    
     player = get_player(chat_id, user.id)
     battle = get_battle(chat_id, user.id)
     
@@ -1822,6 +1816,7 @@ async def attack_enemy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     new_player_health = max(0, player["health"] - enemy_damage)
     
     update_battle(chat_id, user.id, new_enemy_health, new_player_health)
+    
     cursor.execute(
         'UPDATE players SET health=? WHERE chat_id=? AND user_id=?',
         (new_player_health, chat_id, user.id)
@@ -1840,7 +1835,6 @@ async def attack_enemy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if new_enemy_health <= 0:
         xp_reward = int(enemy_info["xp"] * 1.2)
         gold_reward = enemy_info["gold"]
-        
         add_xp(chat_id, user.id, user.first_name, xp_reward)
         add_gold(chat_id, user.id, gold_reward)
         add_kill(chat_id, user.id)
@@ -1873,9 +1867,10 @@ async def attack_enemy(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("⚔️ НОВЫЙ БОЙ", callback_data="start_battle")],
             [InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]
         ]
-        
+    
     elif new_player_health <= 0:
         end_battle(chat_id, user.id)
+        
         cursor.execute(
             'UPDATE players SET health=? WHERE chat_id=? AND user_id=?',
             (player["max_health"], chat_id, user.id)
@@ -1906,7 +1901,6 @@ async def heal_self(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
     chat_id = query.message.chat_id
-    
     player = get_player(chat_id, user.id)
     battle = get_battle(chat_id, user.id)
     
@@ -1923,6 +1917,7 @@ async def heal_self(update: Update, context: ContextTypes.DEFAULT_TYPE):
     new_player_health = max(0, new_player_health - enemy_damage)
     
     update_battle(chat_id, user.id, new_enemy_health, new_player_health)
+    
     cursor.execute(
         'UPDATE players SET health=? WHERE chat_id=? AND user_id=?',
         (new_player_health, chat_id, user.id)
@@ -1940,6 +1935,7 @@ async def heal_self(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if new_player_health <= 0:
         end_battle(chat_id, user.id)
+        
         cursor.execute(
             'UPDATE players SET health=? WHERE chat_id=? AND user_id=?',
             (player["max_health"], chat_id, user.id)
@@ -1957,6 +1953,7 @@ async def heal_self(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("⚔️ НОВЫЙ БОЙ", callback_data="start_battle")],
             [InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]
         ]
+    
     else:
         keyboard = [
             [InlineKeyboardButton("⚔️ АТАКОВАТЬ", callback_data="attack_enemy"), InlineKeyboardButton("🏥 ИСЦЕЛИТЬСЯ", callback_data="heal_self")],
@@ -1972,11 +1969,13 @@ async def flee_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if random.random() < 0.7:
         end_battle(chat_id, user.id)
+        
         text = "✅ Ты успешно сбежал от врага!"
         keyboard = [
             [InlineKeyboardButton("⚔️ БОЙ", callback_data="start_battle")],
             [InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]
         ]
+    
     else:
         battle = get_battle(chat_id, user.id)
         enemy_info = ENEMIES[battle["enemy_id"]]
@@ -1985,6 +1984,7 @@ async def flee_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         new_player_health = max(0, player["health"] - enemy_damage)
         
         update_battle(chat_id, user.id, battle["enemy_health"], new_player_health)
+        
         cursor.execute(
             'UPDATE players SET health=? WHERE chat_id=? AND user_id=?',
             (new_player_health, chat_id, user.id)
@@ -2001,6 +2001,7 @@ async def flee_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if new_player_health <= 0:
             end_battle(chat_id, user.id)
+            
             cursor.execute(
                 'UPDATE players SET health=? WHERE chat_id=? AND user_id=?',
                 (player["max_health"], chat_id, user.id)
@@ -2018,6 +2019,7 @@ async def flee_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("⚔️ НОВЫЙ БОЙ", callback_data="start_battle")],
                 [InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]
             ]
+        
         else:
             keyboard = [
                 [InlineKeyboardButton("⚔️ АТАКОВАТЬ", callback_data="attack_enemy"), InlineKeyboardButton("🏥 ИСЦЕЛИТЬСЯ", callback_data="heal_self")],
@@ -2029,20 +2031,28 @@ async def flee_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ========== WEBHOOK SETUP ==========
 async def handle_webhook(request):
     """Handle incoming Telegram updates via webhook"""
-    data = await request.json()
-    update = Update.de_json(data, application.bot)
-    await application.process_update(update)
-    return web.Response(status=200)
+    try:
+        data = await request.json()
+        update = Update.de_json(data, application.bot)
+        
+        # КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Инициализируем application перед обработкой
+        if not application.updater:
+            await application.initialize()
+        
+        await application.process_update(update)
+        return web.Response(status=200)
+    except Exception as e:
+        logger.error(f"Error processing webhook: {e}")
+        return web.Response(status=500)
 
-async def start_webhook():
+async def start_webhook_server(app):
     """Start the webhook server"""
-    app = web.Application()
-    app.router.add_post('/webhook', handle_webhook)
+    web_app = web.Application()
+    web_app.router.add_post('/webhook', handle_webhook)
     
-    runner = web.AppRunner(app)
+    runner = web.AppRunner(web_app)
     await runner.setup()
     
-    # Получаем порт из переменных окружения (для Render)
     port = int(os.getenv('PORT', 8080))
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
@@ -2054,6 +2064,8 @@ async def start_webhook():
     if webhook_url:
         await application.bot.set_webhook(webhook_url)
         logger.info(f"Webhook set to {webhook_url}")
+    
+    return runner
 
 async def main():
     global application
@@ -2063,6 +2075,7 @@ async def main():
         logger.error("BOT_TOKEN не найден в переменных окружения!")
         return
     
+    # ИСПРАВЛЕНИЕ: Создаём application один раз
     application = ApplicationBuilder().token(token).build()
     
     # Регистрация обработчиков
@@ -2105,14 +2118,21 @@ async def main():
     for pattern, handler in callback_handlers:
         application.add_handler(CallbackQueryHandler(handler, pattern=f"^{pattern}"))
     
+    # ИСПРАВЛЕНИЕ: Инициализируем application ПЕРЕД запуском webhook
+    await application.initialize()
+    
     # Запуск бота с webhook
     try:
-        await start_webhook()
+        runner = await start_webhook_server(application)
         logger.info("Bot started with webhook")
-        await asyncio.Event().wait()  # Бесконечный цикл
+        
+        # Ждём бесконечно
+        await asyncio.Event().wait()
     except Exception as e:
         logger.error(f"Error: {e}")
         raise
+    finally:
+        await application.stop()
 
 if __name__ == "__main__":
     asyncio.run(main())

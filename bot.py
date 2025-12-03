@@ -1,15 +1,11 @@
 import os
 import random
-import asyncio
 import logging
 import sqlite3
 import threading
-import json
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
-from telegram.error import BadRequest
-from aiohttp import web
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -23,7 +19,7 @@ conn = sqlite3.connect('quest_bot.db', check_same_thread=False, timeout=30.0)
 cursor = conn.cursor()
 
 # ========== СИСТЕМА ПВП - ОЧЕРЕДЬ ОЖИДАЮЩИХ ИГРОКОВ ==========
-pvp_queue = {}  # {chat_id: {user_id: player_info}}
+pvp_queue = {}
 
 # ========== БД ==========
 
@@ -209,8 +205,6 @@ CLASSES = {
     },
 }
 
-# ========== ПИТОМЦЫ ==========
-
 PETS = {
     "wolf": {"name": "Волк", "emoji": "🐺", "damage_bonus": 10, "defense_bonus": 3, "xp_bonus": 1.1, "price": 1000},
     "dragon": {"name": "Дракон", "emoji": "🐉", "damage_bonus": 25, "defense_bonus": 8, "xp_bonus": 1.5, "price": 5000},
@@ -220,8 +214,6 @@ PETS = {
     "ancient_dragon": {"name": "Древний Дракон", "emoji": "👹", "damage_bonus": 40, "defense_bonus": 15, "xp_bonus": 2.0, "price": 15000},
     "celestial_phoenix": {"name": "Небесный Феникс", "emoji": "✨", "damage_bonus": 35, "defense_bonus": 12, "xp_bonus": 1.9, "price": 12000},
 }
-
-# ========== ВРАГИ ==========
 
 ENEMIES = {
     "goblin": {"name": "Гоблин", "emoji": "👹", "level": 1, "health": 15, "damage": 3, "xp": 25, "gold": 10, "loot": ["copper_coin"], "is_boss": False},
@@ -244,39 +236,27 @@ ENEMIES = {
     "lich_king": {"name": "Истинный Лич-Король", "emoji": "👿", "level": 10, "health": 300, "damage": 60, "xp": 1000, "gold": 500, "loot": ["king_crown", "eternal_staff"], "is_boss": True},
 }
 
-# ========== ОРУЖИЕ И БРОНЯ ==========
-
 EQUIPMENT_ITEMS = {
     "iron_sword": {"name": "Железный меч", "emoji": "⚔️", "type": "weapon", "attack": 5, "price": 200, "class": "warrior"},
     "steel_sword": {"name": "Стальной меч", "emoji": "🗡️", "type": "weapon", "attack": 10, "price": 500, "class": "warrior"},
     "legendary_sword": {"name": "Меч Вечности", "emoji": "⚡", "type": "weapon", "attack": 50, "price": 5000, "class": "warrior"},
-    
     "iron_armor": {"name": "Железная броня", "emoji": "🛡️", "type": "armor", "defense": 4, "price": 250, "class": "warrior"},
     "steel_armor": {"name": "Стальная броня", "emoji": "🛡️", "type": "armor", "defense": 8, "price": 600, "class": "warrior"},
     "legendary_armor": {"name": "Легендарная броня", "emoji": "👑", "type": "armor", "defense": 40, "price": 5000, "class": "warrior"},
-    
     "fireball_staff": {"name": "Посох огня", "emoji": "🔥", "type": "weapon", "attack": 8, "price": 200, "class": "mage"},
     "archimage_staff": {"name": "Посох Архимага", "emoji": "🔮", "type": "weapon", "attack": 30, "price": 5000, "class": "mage"},
-    
     "mage_robe": {"name": "Мантия мага", "emoji": "👗", "type": "armor", "defense": 2, "mana": 20, "price": 150, "class": "mage"},
     "celestial_robe": {"name": "Небесная мантия", "emoji": "✨", "type": "armor", "defense": 5, "mana": 50, "price": 3000, "class": "mage"},
-    
     "dagger": {"name": "Кинжал", "emoji": "🗡️", "type": "weapon", "attack": 6, "price": 180, "class": "rogue"},
     "shadow_dagger": {"name": "Теневой кинжал", "emoji": "⚫", "type": "weapon", "attack": 15, "price": 1000, "class": "rogue"},
-    
     "shadow_cloak": {"name": "Плащ теней", "emoji": "⚫", "type": "armor", "defense": 3, "price": 220, "class": "rogue"},
     "assassin_armor": {"name": "Броня ассасина", "emoji": "🖤", "type": "armor", "defense": 6, "price": 1500, "class": "rogue"},
-    
     "holy_shield": {"name": "Святой щит", "emoji": "⛪", "type": "armor", "defense": 6, "price": 300, "class": "paladin"},
     "titan_shield": {"name": "Щит Титана", "emoji": "🛡️", "type": "armor", "defense": 40, "price": 5000, "class": "paladin"},
-    
     "blessed_mace": {"name": "Святая булава", "emoji": "⛪", "type": "weapon", "attack": 12, "price": 600, "class": "paladin"},
-    
     "longbow": {"name": "Длинный лук", "emoji": "🏹", "type": "weapon", "attack": 7, "price": 220, "class": "ranger"},
     "moon_bow": {"name": "Лук Луны", "emoji": "🏹", "type": "weapon", "attack": 40, "price": 5000, "class": "ranger"},
 }
-
-# ========== МАГАЗИН ==========
 
 SHOP_ITEMS = {
     "health_potion": {"name": "Зелье здоровья", "emoji": "❤️", "price": 50, "rarity": "common", "class": None},
@@ -284,8 +264,6 @@ SHOP_ITEMS = {
     "strength_potion": {"name": "Зелье силы", "emoji": "💪", "price": 100, "rarity": "uncommon", "class": None},
     "wisdom_elixir": {"name": "Эликсир мудрости", "emoji": "🧠", "price": 200, "rarity": "rare", "class": None},
 }
-
-# ========== ПРЕДМЕТЫ ==========
 
 ITEMS = {
     "copper_coin": {"name": "Медная монета", "rarity": "common", "emoji": "🪙"},
@@ -319,8 +297,6 @@ ITEMS = {
     "mana_potion": {"name": "Зелье маны", "rarity": "common", "emoji": "💙"},
 }
 
-# ========== МАТЕРИАЛЫ ==========
-
 MATERIALS = {
     "copper_ingot": {"name": "Медный слиток", "emoji": "🟠", "rarity": "common"},
     "iron_ingot": {"name": "Железный слиток", "emoji": "⚫", "rarity": "uncommon"},
@@ -330,8 +306,6 @@ MATERIALS = {
     "void_essence": {"name": "Сущность пустоты", "emoji": "🌌", "rarity": "legendary"},
     "celestial_stone": {"name": "Небесный камень", "emoji": "⭐", "rarity": "legendary"},
 }
-
-# ========== УМЕНИЯ ==========
 
 SKILLS = {
     "fireball": {"name": "Огненный шар", "emoji": "🔥", "type": "mage", "damage_multiplier": 1.5, "cost": 15},
@@ -347,8 +321,6 @@ SKILLS = {
     "multi_shot": {"name": "Множественный выстрел", "emoji": "🏹", "type": "ranger", "damage_multiplier": 1.6, "cost": 14},
     "pet_summon": {"name": "Призыв питомца", "emoji": "🐾", "type": "ranger", "damage_multiplier": 1.4, "cost": 18},
 }
-
-# ========== РЕЦЕПТЫ ==========
 
 RECIPES = {
     "iron_ingot_recipe": {
@@ -368,8 +340,6 @@ RECIPES = {
         "level_required": 1
     },
 }
-
-# ========== РЕЙДЫ ==========
 
 RAIDS = {
     "abandoned_ruins": {
@@ -418,22 +388,16 @@ RAIDS = {
     },
 }
 
-# ========== ЕЖЕДНЕВНЫЕ КВЕСТЫ ==========
-
 DAILY_QUESTS = {
     "kill_5_enemies": {"name": "Убить 5 врагов", "emoji": "⚔️", "target": 5, "reward_xp": 200, "reward_gold": 150},
     "kill_10_enemies": {"name": "Убить 10 врагов", "emoji": "⚔️", "target": 10, "reward_xp": 400, "reward_gold": 300},
     "collect_rare_items": {"name": "Собрать 3 редких предмета", "emoji": "💎", "target": 3, "reward_xp": 250, "reward_gold": 200},
 }
 
-# ========== ЕЖЕНЕДЕЛЬНЫЕ КВЕСТЫ ==========
-
 WEEKLY_QUESTS = {
     "kill_boss": {"name": "Убить босса", "emoji": "👹", "target": 1, "reward_xp": 1000, "reward_gold": 500},
     "complete_3_raids": {"name": "Пройти 3 рейда", "emoji": "🏰", "target": 3, "reward_xp": 1500, "reward_gold": 750},
 }
-
-# ========== ДОСТИЖЕНИЯ ==========
 
 ACHIEVEMENTS = {
     "hunter_10": {"name": "Охотник", "emoji": "⚔️", "description": "Убей 10 врагов", "target": 10, "reward": 100},
@@ -1668,22 +1632,15 @@ async def pvp_find_opponent(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat_id not in pvp_queue:
         pvp_queue[chat_id] = {}
     
-    # Проверяем, есть ли уже игроки в очереди
     for waiting_user_id, waiting_player in pvp_queue[chat_id].items():
         if waiting_user_id != user.id:
-            # Проверяем разницу уровней (не более 3 уровней)
             if abs(waiting_player["level"] - player["level"]) <= 3:
-                # Найден противник!
                 pvp_queue[chat_id].pop(waiting_user_id)
-                
-                # Инициируем PVP бой
                 text = f"⚔️ НАЙДЕН СОПЕРНИК!\n\n{waiting_player['name']} (Ур. {waiting_player['level']})\n\nБой начинается..."
                 keyboard = [[InlineKeyboardButton("🔄 Обновить", callback_data=f"pvp_battle_{user.id}_{waiting_user_id}")]]
-                
                 await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
                 return
     
-    # Добавляем в очередь
     pvp_queue[chat_id][user.id] = {
         "name": user.first_name,
         "level": player["level"],
@@ -1989,7 +1946,6 @@ async def raid_wave(update: Update, context: ContextTypes.DEFAULT_TYPE):
     wave = progress["wave"]
     
     if wave > raid_info["waves"]:
-        # Рейд завершён
         add_raid_completion(chat_id, user.id)
         add_xp(chat_id, user.id, user.first_name, raid_info["xp_reward"])
         add_gold(chat_id, user.id, raid_info["gold_reward"])
@@ -2026,13 +1982,11 @@ async def raid_wave(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]
         ]
     else:
-        # Генерируем врагов для волны
         enemies_in_wave = []
         for _ in range(raid_info["enemies_per_wave"]):
             enemy_id = random.choice(list(ENEMIES.keys()))
             enemies_in_wave.append(enemy_id)
         
-        # Первый враг
         current_enemy_id = enemies_in_wave[0]
         current_enemy = ENEMIES[current_enemy_id]
         
@@ -2068,7 +2022,6 @@ async def raid_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
     current_idx = context.user_data.get(f"raid_{raid_id}_current", 0)
     
     if not enemies_list or current_idx >= len(enemies_list):
-        # Переход на следующую волну
         new_wave = progress["wave"] + 1
         update_raid_progress(chat_id, user.id, raid_id, new_wave, 0)
         await raid_wave(update, context)
@@ -2082,7 +2035,6 @@ async def raid_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
     enemy_health -= player_damage
     
     if enemy_health <= 0:
-        # Враг побежден
         add_kill(chat_id, user.id)
         if current_enemy.get("is_boss"):
             add_boss_kill(chat_id, user.id)
@@ -2091,13 +2043,11 @@ async def raid_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data[f"raid_{raid_id}_current"] = current_idx
         
         if current_idx >= len(enemies_list):
-            # Волна завершена
             new_wave = progress["wave"] + 1
             update_raid_progress(chat_id, user.id, raid_id, new_wave, 0)
             await raid_wave(update, context)
             return
         
-        # Следующий враг в волне
         next_enemy_id = enemies_list[current_idx]
         next_enemy = ENEMIES[next_enemy_id]
         
@@ -2227,27 +2177,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "main_menu":
         await main_menu(update, context)
 
-# ========== ЗАГРУЗКА ТОКЕНА ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ ==========
-
 def get_token():
-    """Получить токен из переменных окружения Render"""
     token = os.getenv("TELEGRAM_BOT_TOKEN")
-    
     if not token or token.strip() == "":
         logger.error("❌ ОШИБКА: Токен не найден в переменных окружения!")
-        logger.error("Пожалуйста, установите переменную TELEGRAM_BOT_TOKEN на Render")
         raise ValueError("TELEGRAM_BOT_TOKEN не установлена!")
-    
     if len(token.strip()) < 10:
         logger.error(f"❌ ОШИБКА: Токен слишком короткий: {token[:5]}...")
         raise ValueError("Токен некорректный!")
-    
     logger.info(f"✅ Токен загружен успешно: {token[:20]}...")
     return token.strip()
 
 TOKEN = get_token()
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").strip()
-WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", 8000))
 
 try:
     app = ApplicationBuilder().token(TOKEN).build()
@@ -2261,156 +2202,12 @@ app.add_handler(CallbackQueryHandler(button_handler))
 
 logger.info("✅ Обработчики добавлены!")
 
-
-async def health_check_handler(request):
-    """Простой health check endpoint для Render"""
-    return web.Response(text="OK", status=200)
-
-async def start_health_server(port=8000):
-    """Запустить простой HTTP сервер для health checks"""
-    app_health = web.Application()
-    app_health.router.add_get("/health", health_check_handler)
-    app_health.router.add_get("/", health_check_handler)
-    
-    runner = web.AppRunner(app_health)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
-    
-    logger.info(f"✅ Health check сервер запущен на порту {port}")
-    return runner
-
-async def cleanup_before_start():
-    """
-    Cleanup: delete webhook and polling sessions to ensure only one instance runs.
-    Critical for Render deployments where multiple instances may start.
-    """
-    logger.info("🔧 Выполняю очистку перед запуском...")
-    
-    try:
-        await app.bot.delete_webhook(drop_pending_updates=True)
-        logger.info("✅ Вебхук удалён, ожидающие обновления очищены")
-        await asyncio.sleep(1)
-    except Exception as e:
-        logger.warning(f"⚠️ Ошибка при удалении вебхука: {e}")
-    
-    try:
-        webhook_info = await app.bot.get_webhook_info()
-        if webhook_info.url:
-            logger.warning(f"⚠️ Вебхук всё ещё установлен: {webhook_info.url}")
-            logger.warning(f"   Ожидающих обновлений: {webhook_info.pending_update_count}")
-            
-            await app.bot.delete_webhook(drop_pending_updates=True)
-            await asyncio.sleep(2)
-        else:
-            logger.info("✅ Вебхук успешно удалён")
-    except Exception as e:
-        logger.warning(f"⚠️ Ошибка при проверке вебхука: {e}")
-    
-    try:
-        updates = await app.bot.get_updates(offset=-1, timeout=1)
-        logger.info(f"✅ Сброс обновлений выполнен (получено {len(updates)} обновлений)")
-    except Exception as e:
-        logger.info(f"ℹ️ Информация о сбросе обновлений: {e}")
-    
-    logger.info("✅ Очистка завершена, готов к запуску")
-
 if __name__ == "__main__":
-    if WEBHOOK_URL:
-        logger.info(f"🚀 Запуск в режиме WEBHOOK: {WEBHOOK_URL}")
-        
-        async def webhook_handler(request):
-            try:
-                data = await request.json()
-                update = Update.de_json(data, app.bot)
-                await app.process_update(update)
-                return web.Response(text="OK")
-            except Exception as e:
-                logger.error(f"❌ Ошибка в webhook_handler: {e}")
-                return web.Response(text="ERROR", status=500)
-
-        async def main():
-            await cleanup_before_start()
-            
-            try:
-                await app.bot.set_webhook(
-                    url=f"{WEBHOOK_URL}/webhook",
-                    drop_pending_updates=True,
-                    allowed_updates=[]
-                )
-                logger.info(f"✅ Вебхук установлен: {WEBHOOK_URL}/webhook")
-                await asyncio.sleep(1)
-            except Exception as e:
-                logger.error(f"❌ Ошибка при установке вебхука: {e}")
-                raise
-            
-            try:
-                webhook_info = await app.bot.get_webhook_info()
-                logger.info(f"ℹ️ Информация о вебхуке: URL={webhook_info.url}, ожидающих={webhook_info.pending_update_count}")
-            except Exception as e:
-                logger.warning(f"⚠️ Ошибка при получении информации о вебхуке: {e}")
-            
-            app_web = web.Application()
-            app_web.router.add_post("/webhook", webhook_handler)
-            
-            runner = web.AppRunner(app_web)
-            await runner.setup()
-            site = web.TCPSite(runner, "0.0.0.0", WEBHOOK_PORT)
-            await site.start()
-            
-            logger.info(f"✅ Веб-сервер запущен на порту {WEBHOOK_PORT}")
-            logger.info("✅ Бот готов к работе (режим WEBHOOK)")
-            
-            try:
-                await asyncio.Event().wait()
-            except KeyboardInterrupt:
-                logger.info("⏹️ Завершение работы...")
-                await runner.cleanup()
-                await app.bot.delete_webhook(drop_pending_updates=True)
-                logger.info("✅ Очистка завершена")
-        
-        try:
-            asyncio.run(main())
-        except KeyboardInterrupt:
-            logger.info("⏹️ Бот остановлен пользователем")
-        except Exception as e:
-            logger.error(f"❌ Критическая ошибка: {e}")
-            raise
-    else:
-        logger.info("🚀 Запуск в режиме POLLING...")
-        logger.info("ℹ️ ВАЖНО: В режиме POLLING может быть только один экземпляр!")
-        
-        async def polling_with_health():
-            """Запустить polling с health check сервером"""
-            health_runner = await start_health_server(WEBHOOK_PORT)
-            logger.info(f"✅ Health check сервер успешно запущен на порту {WEBHOOK_PORT}")
-            
-            try:
-                logger.info("✅ Начинаем polling...")
-                await app.run_polling(
-                    drop_pending_updates=True,
-                    allowed_updates=[],
-                    poll_interval=1.0,
-                    timeout=30,
-                )
-            except KeyboardInterrupt:
-                logger.info("⏹️ Бот остановлен пользователем")
-            except asyncio.CancelledError:
-                logger.info("⏹️ Задача отменена")
-            except Exception as e:
-                logger.error(f"❌ Ошибка в режиме POLLING: {e}")
-                if "Conflict" in str(e) or "getUpdates" in str(e):
-                    logger.error("🔴 ОШИБКА КОНФЛИКТА: Запущено несколько экземпляров бота!")
-                    logger.error("Решение: Остановите все экземпляры и создайте новый токен в BotFather")
-                raise
-            finally:
-                await health_runner.cleanup()
-                logger.info("✅ Health check сервер остановлен")
-        
-        try:
-            asyncio.run(polling_with_health())
-        except KeyboardInterrupt:
-            logger.info("⏹️ Бот остановлен пользователем")
-        except Exception as e:
-            logger.error(f"❌ Критическая ошибка: {e}")
-            raise
+    logger.info("🚀 Запуск бота в режиме POLLING...")
+    try:
+        app.run_polling(drop_pending_updates=True, allowed_updates=[])
+    except KeyboardInterrupt:
+        logger.info("⏹️ Бот остановлен пользователем")
+    except Exception as e:
+        logger.error(f"❌ Критическая ошибка: {e}")
+        raise

@@ -278,6 +278,8 @@ ITEMS = {
     "mana_potion": {"name": "Зелье маны", "rarity": "common", "emoji": "💙"},
 }
 
+# ========== МАТЕРИАЛЫ ==========
+
 MATERIALS = {
     "copper_ingot": {"name": "Медный слиток", "emoji": "🟠", "rarity": "common"},
     "iron_ingot": {"name": "Железный слиток", "emoji": "⚫", "rarity": "uncommon"},
@@ -1036,7 +1038,7 @@ async def show_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     player = get_player(chat_id, user.id)
     player_class = player["class"]
-
+    
     text = "🛒 МАГАЗИН\n" + f"{'─' * 30}\n\n"
     text += f"💰 Твоё золото: {player['gold']}\n\n"
     
@@ -1718,19 +1720,44 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "main_menu":
         await main_menu(update, context)
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+# ========== ЗАГРУЗКА ТОКЕНА ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ ==========
+
+def get_token():
+    """Получить токен из переменных окружения Render"""
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    
+    if not token or token.strip() == "":
+        logger.error("❌ ОШИБКА: Токен не найден в переменных окружения!")
+        logger.error("Пожалуйста, установите переменную TELEGRAM_BOT_TOKEN на Render")
+        raise ValueError("TELEGRAM_BOT_TOKEN не установлена!")
+    
+    if len(token.strip()) < 10:
+        logger.error(f"❌ ОШИБКА: Токен слишком короткий: {token[:5]}...")
+        raise ValueError("Токен некорректный!")
+    
+    logger.info(f"✅ Токен загружен успешно: {token[:20]}...")
+    return token.strip()
+
+TOKEN = get_token()
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "").strip()
 WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", 8000))
 
-app = ApplicationBuilder().token(TOKEN).build()
+try:
+    app = ApplicationBuilder().token(TOKEN).build()
+    logger.info("✅ Приложение успешно создано!")
+except Exception as e:
+    logger.error(f"❌ Ошибка при создании приложения: {e}")
+    raise
 
 app.add_handler(CommandHandler("start", start_command))
 app.add_handler(CallbackQueryHandler(button_handler))
 
-logger.info("✅ Бот запущен!")
+logger.info("✅ Обработчики добавлены!")
 
 if __name__ == "__main__":
     if WEBHOOK_URL:
+        logger.info(f"🚀 Запуск в режиме WEBHOOK: {WEBHOOK_URL}")
+        
         async def webhook_handler(request):
             data = await request.json()
             update = Update.de_json(data, app.bot)
@@ -1738,7 +1765,11 @@ if __name__ == "__main__":
             return web.Response(text="OK")
 
         async def main():
-            await app.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
+            try:
+                await app.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
+                logger.info(f"✅ Вебхук установлен: {WEBHOOK_URL}/webhook")
+            except Exception as e:
+                logger.error(f"❌ Ошибка при установке вебхука: {e}")
             
             app_web = web.Application()
             app_web.router.add_post("/webhook", webhook_handler)
@@ -1748,13 +1779,15 @@ if __name__ == "__main__":
             site = web.TCPSite(runner, "0.0.0.0", WEBHOOK_PORT)
             await site.start()
             
-            print(f"Бот запущен на вебхуке: {WEBHOOK_URL}")
+            logger.info(f"✅ Веб-сервер запущен на порту {WEBHOOK_PORT}")
             
             try:
                 await asyncio.Event().wait()
             except KeyboardInterrupt:
+                logger.info("⏹️ Завершение работы...")
                 await runner.cleanup()
         
         asyncio.run(main())
     else:
+        logger.info("🚀 Запуск в режиме POLLING...")
         asyncio.run(app.run_polling())

@@ -2436,33 +2436,44 @@ async def start_http_server(app_telegram):
     logger.info("✅ HTTP сервер запущен на порту 8000")
     return runner
 
-async def run_bot_with_server():
-    """Запуск бота и HTTP сервера одновременно"""
-    # Запускаем HTTP сервер
-    runner = await start_http_server(app)
+async def health_check(request):
+"""Проверка здоровья приложения"""
+return web.Response(text="OK", status=200)
+async def start_http_server():
+"""Запуск HTTP сервера на порту 8000"""
+web_app = web.Application()
+web_app.router.add_get("/", health_check)
+web_app.router.add_get("/health", health_check)
+runner = web.AppRunner(web_app)
+await runner.setup()
+site = web.TCPSite(runner, "0.0.0.0", 8000)
+await site.start()
+logger.info("✅ HTTP сервер запущен на порту 8000")
+return runner
 
-    # Запускаем бота
-    await app.initialize()
-    await app.start()
-    logger.info("🚀 Бот запущен в режиме POLLING...")
-
+async def run_both():
+"""Запуск HTTP сервера и бота одновременно"""
+# Запускаем HTTP сервер
+runner = await start_http_server()
+# Запускаем бота
+logger.info("🚀 Бот запущен в режиме POLLING...")
+try:
+    await app.run_polling(drop_pending_updates=True, allowed_updates=[])
+except Exception as e:
+    logger.error(f"❌ Ошибка: {e}")
+finally:
     try:
-        # Держим бота в рабочем состоянии
-        await app.run_polling(drop_pending_updates=True, allowed_updates=[])
-    except Exception as e:
-        logger.error(f"❌ Ошибка: {e}")
-    finally:
-        await app.stop()
         await runner.cleanup()
+    except:
+        pass
 
+if name == "main":
+logger.info("🚀 Запуск бота с HTTP сервером...")
+logger.info("📡 Порт: 8000 (для Render.com)")
+try:
+asyncio.run(run_both())
+except KeyboardInterrupt:
+logger.info("⏹️ Бот остановлен пользователем")
+except Exception as e:
+logger.error(f"❌ Критическая ошибка: {e}")
 
-if __name__ == "__main__":
-    logger.info("🚀 Запуск бота с HTTP сервером...")
-    logger.info("📡 Порт: 8000 (для Render.com)")
-    try:
-        asyncio.run(run_bot_with_server())
-    except KeyboardInterrupt:
-        logger.info("⏹️ Бот остановлен пользователем")
-    except Exception as e:
-        logger.error(f"❌ Критическая ошибка: {e}")
-        raise

@@ -6,8 +6,6 @@ import threading
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
-import asyncio
-from aiohttp import web
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -2392,78 +2390,226 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "main_menu":
         await main_menu(update, context)
 
+# ========== СИСТЕМА ЛУТА И КРАФТОВ ==========
+
+LOOT_TABLE = {
+    # mob_level: [(item_id, quantity_range, rarity), ...]
+    1: [("copper_ore", (1, 3), "common"), ("cloth_scrap", (1, 2), "common")],
+    2: [("copper_ore", (2, 4), "common"), ("iron_ore", (1, 1), "common"), ("cloth_scrap", (1, 3), "common")],
+    3: [("iron_ore", (1, 3), "common"), ("leather_scrap", (1, 2), "common"), ("herb_green", (1, 2), "common")],
+    4: [("iron_ore", (2, 4), "common"), ("leather_scrap", (2, 3), "common"), ("herb_green", (1, 3), "common"), ("steel_ore", (1, 1), "uncommon")],
+    5: [("steel_ore", (1, 3), "uncommon"), ("leather_scrap", (2, 4), "uncommon"), ("herb_blue", (1, 2), "uncommon"), ("crystal_shard", (1, 1), "rare")],
+}
+
+CRAFT_RECIPES = {
+    "iron_sword": {
+        "name": "🗡️ Железный меч",
+        "materials": {"iron_ore": 5, "copper_ore": 2},
+        "result": "iron_sword",
+        "quantity": 1,
+        "description": "Базовое железное оружие. Урон: +15",
+        "type": "weapon"
+    },
+    "leather_armor": {
+        "name": "🛡️ Кожаная броня",
+        "materials": {"leather_scrap": 8, "cloth_scrap": 3},
+        "result": "leather_armor",
+        "quantity": 1,
+        "description": "Простая защита. Броня: +5",
+        "type": "armor"
+    },
+    "health_potion": {
+        "name": "🧪 Зелье здоровья",
+        "materials": {"herb_green": 3, "cloth_scrap": 1},
+        "result": "health_potion",
+        "quantity": 3,
+        "description": "Восстанавливает 50 HP",
+        "type": "consumable"
+    },
+    "steel_sword": {
+        "name": "⚔️ Стальной меч",
+        "materials": {"steel_ore": 5, "iron_ore": 3, "crystal_shard": 1},
+        "result": "steel_sword",
+        "quantity": 1,
+        "description": "Улучшенное оружие. Урон: +25",
+        "type": "weapon"
+    },
+    "mana_potion": {
+        "name": "💙 Зелье маны",
+        "materials": {"herb_blue": 5, "crystal_shard": 1},
+        "result": "mana_potion",
+        "quantity": 2,
+        "description": "Восстанавливает 30 MP",
+        "type": "consumable"
+    },
+}
+
+SHOP_ITEMS = {
+    "iron_sword": {"name": "🗡️ Железный меч", "price": 100, "attack": 15, "type": "weapon"},
+    "leather_armor": {"name": "🛡️ Кожаная броня", "price": 80, "defense": 5, "type": "armor"},
+    "steel_sword": {"name": "⚔️ Стальной меч", "price": 250, "attack": 25, "type": "weapon"},
+    "steel_armor": {"name": "🛡️ Стальная броня", "price": 200, "defense": 10, "type": "armor"},
+    "health_potion": {"name": "🧪 Зелье здоровья", "price": 20, "type": "potion"},
+    "mana_potion": {"name": "💙 Зелье маны", "price": 30, "type": "potion"},
+}
+
+ITEM_NAMES = {
+    "copper_ore": "🪨 Медная руда",
+    "iron_ore": "🪨 Железная руда",
+    "steel_ore": "🪨 Стальная руда",
+    "cloth_scrap": "🧵 Клочок ткани",
+    "leather_scrap": "🎒 Кусок кожи",
+    "herb_green": "🌿 Зелёная трава",
+    "herb_blue": "💎 Синяя трава",
+    "crystal_shard": "✨ Осколок кристалла",
+    "health_potion": "🧪 Зелье здоровья",
+    "mana_potion": "💙 Зелье маны",
+    "iron_sword": "🗡️ Железный меч",
+    "leather_armor": "🛡️ Кожаная броня",
+    "steel_sword": "⚔️ Стальной меч",
+    "steel_armor": "🛡️ Стальная броня",
+}
+
+def get_recommended_mobs(player_level):
+    """Возвращает уровни мобов для игрока"""
+    return {
+        "easy": max(1, player_level - 2),
+        "normal": player_level,
+        "hard": min(5, player_level + 2),
+    }
+
+def generate_loot(mob_level):
+    """Сгенерировать лут от мобов"""
+    loot = {}
+    if mob_level not in LOOT_TABLE:
+        mob_level = 5
+
+    for item_id, qty_range, rarity in LOOT_TABLE[mob_level]:
+        quantity = random.randint(qty_range[0], qty_range[1])
+        loot[item_id] = quantity
+
+    return loot
+
+def can_craft(user_id, chat_id, recipe_id):
+    """Проверить может ли игрок скрафтить рецепт"""
+    if recipe_id not in CRAFT_RECIPES:
+        return False, "❌ Рецепт не найден"
+
+    recipe = CRAFT_RECIPES[recipe_id]
+
+    for item_id, needed_qty in recipe["materials"].items():
+        cursor.execute(
+            'SELECT quantity FROM inventory WHERE user_id = ? AND chat_id = ? AND item_id = ?',
+            (user_id, chat_id, item_id)
+        )
+        result = cursor.fetchone()
+        have_qty = result[0] if result else 0
+
+        if have_qty < needed_qty:
+            item_name = ITEM_NAMES.get(item_id, item_id)
+            return False, f"❌ Не хватает {item_name}. Нужно: {needed_qty}, есть: {have_qty}"
+
+    return True, "✅ Можно крафтить"
+
+async def craft_item(update, context, recipe_id):
+    """Выполнить крафт"""
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+
+    can_do, msg = can_craft(user_id, chat_id, recipe_id)
+
+    if not can_do:
+        await update.callback_query.answer(msg, show_alert=True)
+        return
+
+    recipe = CRAFT_RECIPES[recipe_id]
+
+    # Убираем материалы
+    for item_id, qty in recipe["materials"].items():
+        cursor.execute(
+            'UPDATE inventory SET quantity = quantity - ? WHERE user_id = ? AND chat_id = ? AND item_id = ?',
+            (qty, user_id, chat_id, item_id)
+        )
+        cursor.execute('DELETE FROM inventory WHERE quantity <= 0 AND user_id = ? AND chat_id = ?',
+                      (user_id, chat_id))
+
+    # Добавляем результат
+    cursor.execute(
+        'INSERT INTO inventory (user_id, chat_id, item_id, quantity) VALUES (?, ?, ?, ?) '
+        'ON CONFLICT(user_id, chat_id, item_id) DO UPDATE SET quantity = quantity + ?',
+        (user_id, chat_id, recipe["result"], recipe["quantity"], recipe["quantity"])
+    )
+
+    conn.commit()
+
+    result_name = ITEM_NAMES.get(recipe["result"], recipe["result"])
+    text = f"✅ **Крафт завершён!**\n\n{recipe['name']}\n{recipe['description']}\n\n+{recipe['quantity']} {result_name}"
+
+    await update.callback_query.edit_text(text, parse_mode="Markdown")
+    await update.callback_query.answer("Крафт успешен!", show_alert=False)
+
+async def buy_item(update, context, item_id):
+    """Купить предмет в магазине"""
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+
+    if item_id not in SHOP_ITEMS:
+        await update.callback_query.answer("❌ Предмет не найден", show_alert=True)
+        return
+
+    item = SHOP_ITEMS[item_id]
+    price = item["price"]
+
+    # Проверяем золото
+    cursor.execute('SELECT gold FROM players WHERE user_id = ? AND chat_id = ?', (user_id, chat_id))
+    result = cursor.fetchone()
+
+    if not result or result[0] < price:
+        current_gold = result[0] if result else 0
+        await update.callback_query.answer(f"❌ Не хватает золота!\nЕсть: {current_gold}💰, нужно: {price}💰", show_alert=True)
+        return
+
+    # Снимаем золото
+    cursor.execute('UPDATE players SET gold = gold - ? WHERE user_id = ? AND chat_id = ?',
+                  (price, user_id, chat_id))
+
+    # Добавляем предмет
+    if item["type"] in ["weapon", "armor"]:
+        cursor.execute(
+            'INSERT INTO equipment (user_id, chat_id, item_id, attack, defense) VALUES (?, ?, ?, ?, ?) '
+            'ON CONFLICT(user_id, chat_id, item_id) DO UPDATE SET attack = attack + ?, defense = defense + ?',
+            (user_id, chat_id, item_id, item.get("attack", 0), item.get("defense", 0),
+             item.get("attack", 0), item.get("defense", 0))
+        )
+    else:
+        cursor.execute(
+            'INSERT INTO inventory (user_id, chat_id, item_id, quantity) VALUES (?, ?, ?, 1) '
+            'ON CONFLICT(user_id, chat_id, item_id) DO UPDATE SET quantity = quantity + 1',
+            (user_id, chat_id, item_id)
+        )
+
+    conn.commit()
+
+    text = f"✅ **Покупка успешна!**\n\n{item['name']}\n💰 Заплачено: {price}\n\nПредмет добавлен в инвентарь!"
+    await update.callback_query.edit_text(text, parse_mode="Markdown")
+    await update.callback_query.answer("Покупка выполнена!", show_alert=False)
 def get_token():
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token or token.strip() == "":
-        logger.error("❌ ОШИБКА: Токен не найден!")
+        logger.error("❌ ОШИБКА: Токен не найден в переменных окружения!")
         raise ValueError("TELEGRAM_BOT_TOKEN не установлена!")
+    if len(token.strip()) < 10:
+        logger.error(f"❌ ОШИБКА: Токен слишком короткий: {token[:5]}...")
+        raise ValueError("Токен некорректный!")
+    logger.info(f"✅ Токен загружен успешно: {token[:20]}...")
     return token.strip()
 
 TOKEN = get_token()
 
 try:
     app = ApplicationBuilder().token(TOKEN).build()
-    logger.info("✅ Приложение создано!")
+    logger.info("✅ Приложение успешно создано!")
 except Exception as e:
-    logger.error(f"❌ Ошибка: {e}")
+    logger.error(f"❌ Ошибка при создании приложения: {e}")
     raise
 
-app.add_handler(CommandHandler("start", start_command))
-app.add_handler(CallbackQueryHandler(button_handler))
-
-logger.info("✅ Обработчики добавлены!")
-
-# ========== WEBHOOK ДЛЯ RENDER.COM ==========
-async def health_check(request):
-    return web.Response(text="OK", status=200)
-
-async def webhook_handler(request):
-    """Обработчик вебхука от Telegram"""
-    try:
-        data = await request.json()
-        update = Update.de_json(data, app.bot)
-        await app.process_update(update)
-        return web.Response(status=200)
-    except Exception as e:
-        logger.error(f"❌ Ошибка вебхука: {e}")
-        return web.Response(status=500)
-
-async def start_webhook_server():
-    """Запуск вебхука"""
-    # Регистрируем роуты
-    web_app = web.Application()
-    web_app.router.add_post('/webhook', webhook_handler)
-    web_app.router.add_get('/health', health_check)
-
-    # Запускаем вебхук
-    runner = web.AppRunner(web_app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 8000)
-    await site.start()
-    logger.info("✅ Вебхук запущен на порту 8000")
-
-    # Инициализируем приложение
-    await app.initialize()
-
-    # Устанавливаем вебхук на Telegram
-    webhook_url = "https://quest-bot-1eiw.onrender.com/webhook"
-    await app.bot.set_webhook(webhook_url, drop_pending_updates=True)
-    logger.info(f"✅ Вебхук установлен: {webhook_url}")
-
-    # Держим сервер работающим
-    try:
-        await asyncio.sleep(float('inf'))
-    except:
-        await runner.cleanup()
-        await app.shutdown()
-
-if __name__ == "__main__":
-    logger.info("🚀 Запуск бота с вебхуком...")
-    logger.info("📡 Порт: 8000 (для Render.com)")
-
-    try:
-        asyncio.run(start_webhook_server())
-    except KeyboardInterrupt:
-        logger.info("⏹️ Бот остановлен")
-    except Exception as e:
-        logger.error(f"❌ Ошибка: {e}")

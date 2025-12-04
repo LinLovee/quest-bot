@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-RuneQuestRPG v5.3 — RPG Telegram Bot
+RuneQuestRPG v5.3 COMPLETE — RPG Telegram Bot с полным функционалом
 
-Изменения по твоим запросам:
-- ПВП ПЕРЕДЕЛАНО ПОД ГЛОБАЛЬНЫЙ ПОИСК (игроки в ЛС, не в общем чате)
-- ПОДЗЕМЕЛЬЯ СДЕЛАНЫ НОРМАЛЬНО (этажи, сохранение рейтинга, бой через общую систему битв)
-- ДОБАВЛЕН PORT BINDING ЧЕРЕЗ FASTAPI ДЛЯ WEB SERVICE НА RENDER.COM
+УЛУЧШЕНИЯ:
+- ✅ ПВП ПЕРЕДЕЛАНО НА ГЛОБАЛЬНЫЙ ПОИСК (игроки в ЛС, не в чате)
+- ✅ ПОДЗЕМЕЛЬЯ ПОЛНОСТЬЮ РАБОТАЮТ (этажи, масштабирование врагов, рейтинги)
+- ✅ FASTAPI + PORT BINDING для Web Service на Render.com
+- ✅ ВЕС ФУНКЦИОНАЛ СТАРОГО БОТА ВОССТАНОВЛЕН (shop, crafting, equipment, pets, runes)
 
 Запуск:
     python bot.py
@@ -21,6 +22,7 @@ import threading
 from typing import Optional, Dict, Any, Callable, List, Tuple
 from functools import wraps
 from enum import Enum
+from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -64,7 +66,7 @@ MAX_LEVEL = 100
 LEVEL_UP_BASE = 100
 STATS_PER_LEVEL = {"health": 20, "mana": 15, "attack": 5, "defense": 2}
 
-# ===================== ДАННЫЕ И КЛАССЫ =====================
+# ===================== ENUM И КЛАССЫ =====================
 
 
 class Element(Enum):
@@ -76,6 +78,14 @@ class Element(Enum):
     POISON = "poison"
     ARCANE = "arcane"
 
+
+class RuneType(Enum):
+    OFFENSIVE = "offensive"
+    DEFENSIVE = "defensive"
+    UTILITY = "utility"
+
+
+# ===================== ДАННЫЕ =====================
 
 CLASSES: Dict[str, Dict[str, Any]] = {
     "warrior": {
@@ -201,17 +211,113 @@ ENEMIES: Dict[str, Dict[str, Any]] = {
         "boss": False,
         "element": Element.SHADOW.value,
     },
+    "troll": {
+        "name": "Тролль",
+        "emoji": "👹",
+        "level": 10,
+        "hp": 120,
+        "damage": 25,
+        "xp": 150,
+        "gold": 60,
+        "loot": ["trollhide"],
+        "boss": False,
+        "element": Element.PHYSICAL.value,
+    },
+    "basilisk": {
+        "name": "Василиск",
+        "emoji": "🐍",
+        "level": 15,
+        "hp": 100,
+        "damage": 30,
+        "xp": 200,
+        "gold": 80,
+        "loot": ["basiliskscale"],
+        "boss": False,
+        "element": Element.POISON.value,
+    },
+    "icemage": {
+        "name": "Ледяной маг",
+        "emoji": "❄️",
+        "level": 12,
+        "hp": 70,
+        "damage": 35,
+        "xp": 180,
+        "gold": 75,
+        "loot": ["icecrystal"],
+        "boss": False,
+        "element": Element.ICE.value,
+    },
+    "demon": {
+        "name": "Демон",
+        "emoji": "😈",
+        "level": 25,
+        "hp": 180,
+        "damage": 45,
+        "xp": 400,
+        "gold": 150,
+        "loot": ["demonessence"],
+        "boss": False,
+        "element": Element.SHADOW.value,
+    },
+    "orc": {
+        "name": "Орк",
+        "emoji": "🗡️👹",
+        "level": 20,
+        "hp": 140,
+        "damage": 40,
+        "xp": 300,
+        "gold": 120,
+        "loot": [],
+        "boss": False,
+        "element": Element.PHYSICAL.value,
+    },
+    "vampire": {
+        "name": "Вампир",
+        "emoji": "🦇",
+        "level": 30,
+        "hp": 150,
+        "damage": 50,
+        "xp": 500,
+        "gold": 180,
+        "loot": ["bloodcrystal"],
+        "boss": False,
+        "element": Element.SHADOW.value,
+    },
+    "lichboss": {
+        "name": "Босс Лич",
+        "emoji": "💀👑",
+        "level": 35,
+        "hp": 250,
+        "damage": 60,
+        "xp": 800,
+        "gold": 300,
+        "loot": ["lichstone"],
+        "boss": True,
+        "element": Element.SHADOW.value,
+    },
     "dragon_boss": {
         "name": "Дракон",
         "emoji": "🐉",
-        "level": 10,
-        "hp": 250,
-        "damage": 40,
-        "xp": 600,
-        "gold": 300,
-        "loot": [],
+        "level": 50,
+        "hp": 400,
+        "damage": 70,
+        "xp": 1500,
+        "gold": 500,
+        "loot": ["dragonscale", "dragonheart"],
         "boss": True,
         "element": Element.FIRE.value,
+    },
+    "demonlord": {
+        "name": "Повелитель демонов",
+        "emoji": "👿",
+        "level": 70,
+        "hp": 500,
+        "damage": 90,
+        "xp": 2000,
+        "gold": 700,
+        "loot": ["lordessence"],
+        "boss": True,
+        "element": Element.SHADOW.value,
     },
 }
 
@@ -225,6 +331,51 @@ PETS: Dict[str, Dict[str, Any]] = {
         "price": 500,
         "level": 1,
     },
+    "phoenix": {
+        "name": "Феникс",
+        "emoji": "🔥",
+        "attack_bonus": 20,
+        "defense_bonus": 5,
+        "xp_bonus": 1.4,
+        "price": 2000,
+        "level": 10,
+    },
+    "dragon": {
+        "name": "Дракон",
+        "emoji": "🐉",
+        "attack_bonus": 25,
+        "defense_bonus": 10,
+        "xp_bonus": 1.5,
+        "price": 3200,
+        "level": 15,
+    },
+    "shadow": {
+        "name": "Теневой питомец",
+        "emoji": "👻",
+        "attack_bonus": 15,
+        "defense_bonus": 2,
+        "xp_bonus": 1.3,
+        "price": 1100,
+        "level": 5,
+    },
+    "bear": {
+        "name": "Медведь",
+        "emoji": "🐻",
+        "attack_bonus": 18,
+        "defense_bonus": 8,
+        "xp_bonus": 1.2,
+        "price": 1500,
+        "level": 8,
+    },
+    "demon": {
+        "name": "Демоническое существо",
+        "emoji": "😈",
+        "attack_bonus": 32,
+        "defense_bonus": 4,
+        "xp_bonus": 1.6,
+        "price": 5200,
+        "level": 20,
+    },
 }
 
 WEAPONS: Dict[str, Dict[str, Any]] = {
@@ -235,7 +386,70 @@ WEAPONS: Dict[str, Dict[str, Any]] = {
         "price": 100,
         "level": 1,
         "crit": 0,
-        "class": "warrior",
+        "class": None,
+    },
+    "steel_sword": {
+        "name": "Стальной меч",
+        "emoji": "⚔️",
+        "attack": 20,
+        "price": 300,
+        "level": 5,
+        "crit": 2,
+        "class": None,
+    },
+    "mithril_sword": {
+        "name": "Мифриловый меч",
+        "emoji": "✨⚔️",
+        "attack": 35,
+        "price": 800,
+        "level": 15,
+        "crit": 5,
+        "class": None,
+    },
+    "staff": {
+        "name": "Посох",
+        "emoji": "🪄",
+        "attack": 8,
+        "price": 150,
+        "level": 1,
+        "crit": 0,
+        "class": "mage",
+    },
+    "staff_fire": {
+        "name": "Посох огня",
+        "emoji": "🔥",
+        "attack": 25,
+        "price": 600,
+        "level": 10,
+        "crit": 3,
+        "class": "mage",
+    },
+    "dagger": {
+        "name": "Кинжал",
+        "emoji": "🗡️",
+        "attack": 15,
+        "price": 200,
+        "level": 3,
+        "crit": 10,
+        "class": "rogue",
+    },
+    "bow": {
+        "name": "Лук",
+        "emoji": "🏹",
+        "attack": 18,
+        "price": 250,
+        "level": 5,
+        "crit": 8,
+        "class": "ranger",
+    },
+    "holy_sword": {
+        "name": "Святой мечь",
+        "emoji": "✨",
+        "attack": 22,
+        "price": 400,
+        "level": 10,
+        "crit": 2,
+        "class": "paladin",
     },
 }
 
@@ -247,12 +461,144 @@ ARMOR: Dict[str, Dict[str, Any]] = {
         "health": 20,
         "price": 150,
         "level": 1,
-        "class": "warrior",
+        "class": None,
+    },
+    "steel_armor": {
+        "name": "Стальная броня",
+        "emoji": "🛡️",
+        "defense": 15,
+        "health": 40,
+        "price": 400,
+        "level": 5,
+        "class": None,
+    },
+    "mithril_armor": {
+        "name": "Мифриловая броня",
+        "emoji": "✨🛡️",
+        "defense": 25,
+        "health": 70,
+        "price": 1000,
+        "level": 15,
+        "class": None,
+    },
+    "mage_robe": {
+        "name": "Мантия мага",
+        "emoji": "👗",
+        "defense": 5,
+        "health": 15,
+        "price": 200,
+        "level": 3,
+        "class": "mage",
+    },
+    "paladin_plate": {
+        "name": "Паладинская броня",
+        "emoji": "⚜️",
+        "defense": 30,
+        "health": 60,
+        "price": 800,
+        "level": 10,
+        "class": "paladin",
     },
 }
 
 MATERIALS: Dict[str, Dict[str, Any]] = {
     "copper_ore": {"name": "Медная руда", "emoji": "⛏️", "value": 10},
+    "iron_ore": {"name": "Железная руда", "emoji": "⛏️", "value": 20},
+    "mithril_ore": {"name": "Мифриловая руда", "emoji": "✨⛏️", "value": 50},
+    "bone": {"name": "Кость", "emoji": "🦴", "value": 15},
+    "wolf_fang": {"name": "Волчий клык", "emoji": "🐺", "value": 25},
+    "troll_hide": {"name": "Кожа тролля", "emoji": "👹", "value": 30},
+    "basilisk_scale": {"name": "Чешуя василиска", "emoji": "🐍", "value": 40},
+    "ice_crystal": {"name": "Ледяной кристалл", "emoji": "❄️", "value": 60},
+    "demon_essence": {"name": "Сущность демона", "emoji": "😈", "value": 100},
+    "dragon_scale": {"name": "Чешуя дракона", "emoji": "🐉", "value": 200},
+    "dragon_heart": {"name": "Сердце дракона", "emoji": "💎", "value": 300},
+    "blood_crystal": {"name": "Кровавый кристалл", "emoji": "🩸", "value": 80},
+    "soul_essence": {"name": "Сущность души", "emoji": "👻", "value": 120},
+    "lich_stone": {"name": "Камень Лича", "emoji": "⚫", "value": 150},
+    "ancient_gem": {"name": "Древний самоцвет", "emoji": "💎", "value": 250},
+    "lord_essence": {"name": "Сущность Повелителя", "emoji": "👿", "value": 300},
+}
+
+RUNES: Dict[str, Dict[str, Any]] = {
+    "rune_of_power": {
+        "name": "Руна Мощи",
+        "emoji": "⚡",
+        "type": RuneType.OFFENSIVE.value,
+        "attack_bonus": 10,
+        "defense_bonus": 0,
+        "crit_bonus": 5,
+        "price": 800,
+    },
+    "rune_of_protection": {
+        "name": "Руна Защиты",
+        "emoji": "🛡️",
+        "type": RuneType.DEFENSIVE.value,
+        "attack_bonus": 0,
+        "defense_bonus": 12,
+        "crit_bonus": 0,
+        "price": 900,
+    },
+    "rune_of_focus": {
+        "name": "Руна Фокуса",
+        "emoji": "🎯",
+        "type": RuneType.UTILITY.value,
+        "attack_bonus": 5,
+        "defense_bonus": 5,
+        "crit_bonus": 3,
+        "price": 700,
+    },
+}
+
+CRAFTING_RECIPES: Dict[str, Dict[str, Any]] = {
+    "copper_bar": {
+        "name": "Медный слиток",
+        "emoji": "🪙",
+        "materials": {"copper_ore": 5},
+        "gold": 20,
+        "level": 1,
+        "result": "copper_bar",
+    },
+    "iron_bar": {
+        "name": "Железный слиток",
+        "emoji": "⚙️",
+        "materials": {"iron_ore": 5},
+        "gold": 55,
+        "level": 3,
+        "result": "iron_bar",
+    },
+    "mithril_bar": {
+        "name": "Мифриловый слиток",
+        "emoji": "✨",
+        "materials": {"mithril_ore": 3, "ice_crystal": 1},
+        "gold": 210,
+        "level": 10,
+        "result": "mithril_bar",
+    },
+    "health_potion": {
+        "name": "Зелье здоровья",
+        "emoji": "🧪",
+        "materials": {"bone": 2, "copper_ore": 1},
+        "gold": 35,
+        "level": 1,
+        "result": "health_potion",
+    },
+    "mana_potion": {
+        "name": "Зелье маны",
+        "emoji": "💧",
+        "materials": {"ice_crystal": 1},
+        "gold": 85,
+        "level": 5,
+        "result": "mana_potion",
+    },
+    "strength_potion": {
+        "name": "Зелье силы",
+        "emoji": "💪",
+        "materials": {"troll_hide": 1, "wolf_fang": 2},
+        "gold": 110,
+        "level": 7,
+        "result": "strength_potion",
+    },
 }
 
 LOCATIONS: Dict[str, Dict[str, Any]] = {
@@ -263,7 +609,55 @@ LOCATIONS: Dict[str, Dict[str, Any]] = {
         "max_level": 10,
         "description": "Опасный лес, полный гоблинов и волков.",
         "enemies": ["goblin", "wolf", "skeleton"],
-    }
+    },
+    "mountain_cave": {
+        "name": "Горная пещера",
+        "emoji": "🏔️",
+        "min_level": 10,
+        "max_level": 25,
+        "description": "Пещера, где обитают тролли и василиски.",
+        "enemies": ["troll", "basilisk", "icemage"],
+    },
+    "castle_ruins": {
+        "name": "Руины замка",
+        "emoji": "🏰",
+        "min_level": 25,
+        "max_level": 45,
+        "description": "Забытый замок, исполненный демонов.",
+        "enemies": ["demon", "skeleton", "orc"],
+    },
+    "volcano": {
+        "name": "Вулкан",
+        "emoji": "🌋",
+        "min_level": 45,
+        "max_level": 65,
+        "description": "Огненный вулкан, дом дракона.",
+        "enemies": ["demon", "dragon_boss", "basilisk"],
+    },
+    "demon_lair": {
+        "name": "Логово демонов",
+        "emoji": "😈",
+        "min_level": 65,
+        "max_level": 90,
+        "description": "Ад на земле, край безумия.",
+        "enemies": ["demon", "vampire", "demonlord"],
+    },
+    "frozen_peak": {
+        "name": "Ледяная вершина",
+        "emoji": "❄️",
+        "min_level": 20,
+        "max_level": 40,
+        "description": "Вечный лёд и холод.",
+        "enemies": ["icemage", "basilisk", "wolf"],
+    },
+    "shadow_valley": {
+        "name": "Долина теней",
+        "emoji": "🌫️",
+        "min_level": 30,
+        "max_level": 60,
+        "description": "Мрачная долина, где скрываются вампиры.",
+        "enemies": ["vampire", "skeleton", "lichboss"],
+    },
 }
 
 # ===================== БД =====================
@@ -293,7 +687,6 @@ def init_database():
     conn = get_db()
     c = conn.cursor()
 
-    # Игроки
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS players (
@@ -313,6 +706,7 @@ def init_database():
             dungeon_rating INTEGER DEFAULT 0,
             equipped_weapon TEXT,
             equipped_armor TEXT,
+            equipped_rune TEXT,
             pet_id TEXT DEFAULT 'wolf',
             pet_level INTEGER DEFAULT 1,
             total_kills INTEGER DEFAULT 0,
@@ -321,12 +715,14 @@ def init_database():
             total_battles_lost INTEGER DEFAULT 0,
             pvp_wins INTEGER DEFAULT 0,
             pvp_losses INTEGER DEFAULT 0,
+            craft_count INTEGER DEFAULT 0,
+            current_location TEXT,
+            last_daily_reward TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
 
-    # Инвентарь
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS inventory (
@@ -336,13 +732,12 @@ def init_database():
             item_id TEXT NOT NULL,
             item_type TEXT,
             quantity INTEGER DEFAULT 1,
-            UNIQUE(user_id, item_id),
-            FOREIGN KEY(user_id) REFERENCES players(user_id)
+            FOREIGN KEY(user_id) REFERENCES players(user_id),
+            UNIQUE(user_id, item_id)
         )
         """
     )
 
-    # Обычные/подземельные бои
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS battles (
@@ -362,7 +757,6 @@ def init_database():
         """
     )
 
-    # Прогресс подземелья
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS dungeon_progress (
@@ -376,7 +770,6 @@ def init_database():
         """
     )
 
-    # Очередь ПВП (ГЛОБАЛЬНАЯ)
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS pvp_queue (
@@ -390,7 +783,6 @@ def init_database():
         """
     )
 
-    # История ПВП боёв
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS pvp_battles (
@@ -407,12 +799,19 @@ def init_database():
         """
     )
 
+    c.execute("CREATE INDEX IF NOT EXISTS idx_user_id ON players(user_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_level ON players(level)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_inventory_user ON inventory(user_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_battles_user ON battles(user_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_chat ON players(chat_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_pvp_confirmed ON pvp_queue(confirmed)")
+
     conn.commit()
     conn.close()
     logger.info("✅ База данных инициализирована")
 
 
-# ===================== ФУНКЦИИ ДЛЯ ИГРОКОВ =====================
+# ===================== ИГРОКИ =====================
 
 
 @safedb_execute
@@ -450,7 +849,6 @@ def init_player(chat_id: int, user_id: int, username: str, player_class: str) ->
                 "wolf",
             ),
         )
-        # стартовые зелья
         c.execute(
             """
             INSERT OR IGNORE INTO inventory (user_id, chat_id, item_id, item_type, quantity)
@@ -495,30 +893,30 @@ def player_exists(chat_id: int, user_id: int) -> bool:
 
 
 @safedb_execute
-def add_xp(chat_id: int, user_id: int, xp_amount: int) -> int:
+def add_xp(chat_id: int, user_id: int, username: str, xp_amount: int) -> int:
     player = get_player(chat_id, user_id)
     if not player:
         return 0
     new_xp = player["xp"] + xp_amount
-    level = player["level"]
-    level_ups = 0
+    current_level = player["level"]
+    levels_up = 0
 
-    while level < MAX_LEVEL:
-        xp_needed = int(LEVEL_UP_BASE * (level ** 1.5))
+    while current_level < MAX_LEVEL:
+        xp_needed = int(LEVEL_UP_BASE * (current_level ** 1.5))
         if new_xp >= xp_needed:
             new_xp -= xp_needed
-            level += 1
-            level_ups += 1
+            current_level += 1
+            levels_up += 1
         else:
             break
 
     conn = get_db()
     c = conn.cursor()
-    if level_ups > 0:
-        new_max_hp = player["max_health"] + STATS_PER_LEVEL["health"] * level_ups
-        new_max_mana = player["max_mana"] + STATS_PER_LEVEL["mana"] * level_ups
-        new_attack = player["attack"] + STATS_PER_LEVEL["attack"] * level_ups
-        new_defense = player["defense"] + STATS_PER_LEVEL["defense"] * level_ups
+    if levels_up > 0:
+        new_health = player["max_health"] + STATS_PER_LEVEL["health"] * levels_up
+        new_mana = player["max_mana"] + STATS_PER_LEVEL["mana"] * levels_up
+        new_attack = player["attack"] + STATS_PER_LEVEL["attack"] * levels_up
+        new_defense = player["defense"] + STATS_PER_LEVEL["defense"] * levels_up
         c.execute(
             """
             UPDATE players
@@ -527,17 +925,18 @@ def add_xp(chat_id: int, user_id: int, xp_amount: int) -> int:
             """,
             (
                 new_xp,
-                level,
-                new_max_hp,
-                new_max_hp,
-                new_max_mana,
-                new_max_mana,
+                current_level,
+                new_health,
+                new_health,
+                new_mana,
+                new_mana,
                 new_attack,
                 new_defense,
                 user_id,
                 chat_id,
             ),
         )
+        logger.info(f"⬆️ {username} - {levels_up} уровней!")
     else:
         c.execute(
             "UPDATE players SET xp = ? WHERE user_id = ? AND chat_id = ?",
@@ -546,7 +945,7 @@ def add_xp(chat_id: int, user_id: int, xp_amount: int) -> int:
 
     conn.commit()
     conn.close()
-    return level_ups
+    return levels_up
 
 
 @safedb_execute
@@ -626,10 +1025,15 @@ def add_item(chat_id: int, user_id: int, item_id: str, quantity: int = 1):
             item_type = "weapon"
         elif item_id in ARMOR:
             item_type = "armor"
+        elif item_id in PETS:
+            item_type = "pet"
         elif item_id in MATERIALS:
             item_type = "material"
+        elif item_id in RUNES:
+            item_type = "rune"
         elif item_id == "health_potion":
             item_type = "potion"
+
         c.execute(
             "INSERT INTO inventory (user_id, chat_id, item_id, item_type, quantity) VALUES (?, ?, ?, ?, ?)",
             (user_id, chat_id, item_id, item_type, quantity),
@@ -665,18 +1069,149 @@ def remove_item(chat_id: int, user_id: int, item_id: str, quantity: int = 1) -> 
     return True
 
 
-# ===================== БОИ (PVE + ПОДЗЕМЕЛЬЯ) =====================
+@safedb_execute
+def get_material(chat_id: int, user_id: int, material_id: str) -> int:
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        "SELECT quantity FROM inventory WHERE user_id = ? AND chat_id = ? AND item_id = ?",
+        (user_id, chat_id, material_id),
+    )
+    row = c.fetchone()
+    conn.close()
+    return row["quantity"] if row else 0
 
 
-def calculate_damage(attacker_attack: int, defender_defense: int, crit_chance: int, spell_power: int = 0) -> Tuple[int, bool]:
-    base = max(1, attacker_attack - defender_defense // 2)
+@safedb_execute
+def can_use_item(player_class: str, item_id: str) -> bool:
+    if item_id in WEAPONS:
+        return (
+            WEAPONS[item_id].get("class") == player_class
+            or WEAPONS[item_id].get("class") is None
+        )
+    elif item_id in ARMOR:
+        return (
+            ARMOR[item_id].get("class") == player_class
+            or ARMOR[item_id].get("class") is None
+        )
+    return True
+
+
+@safedb_execute
+def equip_weapon(chat_id: int, user_id: int, weapon_id: str) -> bool:
+    player = get_player(chat_id, user_id)
+    if not player or weapon_id not in WEAPONS:
+        return False
+
+    if not can_use_item(player["class"], weapon_id):
+        return False
+
+    if get_item_quantity(chat_id, user_id, weapon_id) <= 0:
+        return False
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE players SET equipped_weapon = ? WHERE user_id = ? AND chat_id = ?",
+        (weapon_id, user_id, chat_id),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+@safedb_execute
+def equip_armor(chat_id: int, user_id: int, armor_id: str) -> bool:
+    player = get_player(chat_id, user_id)
+    if not player or armor_id not in ARMOR:
+        return False
+
+    if not can_use_item(player["class"], armor_id):
+        return False
+
+    if get_item_quantity(chat_id, user_id, armor_id) <= 0:
+        return False
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE players SET equipped_armor = ? WHERE user_id = ? AND chat_id = ?",
+        (armor_id, user_id, chat_id),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+@safedb_execute
+def buy_item(chat_id: int, user_id: int, item_id: str) -> bool:
+    player = get_player(chat_id, user_id)
+    if not player:
+        return False
+
+    price = 0
+    if item_id in WEAPONS:
+        if not can_use_item(player["class"], item_id):
+            return False
+        price = WEAPONS[item_id]["price"]
+    elif item_id in ARMOR:
+        if not can_use_item(player["class"], item_id):
+            return False
+        price = ARMOR[item_id]["price"]
+    elif item_id in PETS:
+        price = PETS[item_id]["price"]
+    elif item_id in RUNES:
+        price = RUNES[item_id]["price"]
+    else:
+        return False
+
+    if not subtract_gold(chat_id, user_id, price):
+        return False
+
+    add_item(chat_id, user_id, item_id)
+    return True
+
+
+@safedb_execute
+def buy_pet(chat_id: int, user_id: int, pet_id: str) -> bool:
+    player = get_player(chat_id, user_id)
+    if not player or pet_id not in PETS:
+        return False
+
+    pet = PETS[pet_id]
+    price = pet["price"]
+    if not subtract_gold(chat_id, user_id, price):
+        return False
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE players SET pet_id = ?, pet_level = 1 WHERE user_id = ? AND chat_id = ?",
+        (pet_id, user_id, chat_id),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+# ===================== БОИ =====================
+
+
+def calculate_damage(
+    attacker_attack: int,
+    defender_defense: int,
+    attacker_crit_chance: int = 5,
+    spell_power: int = 0,
+) -> Tuple[int, bool]:
+    base_damage = max(1, attacker_attack - defender_defense // 2)
     variation = random.uniform(0.85, 1.15)
-    damage = int(base * variation)
+    damage = int(base_damage * variation)
 
     if spell_power > 0:
-        damage += int(spell_power * random.uniform(0.8, 1.2))
+        spell_damage = int(spell_power * random.uniform(0.8, 1.2))
+        damage += spell_damage
 
-    is_crit = random.randint(1, 100) <= crit_chance
+    is_crit = random.randint(1, 100) <= attacker_crit_chance
     if is_crit:
         damage = int(damage * 1.5)
 
@@ -691,36 +1226,50 @@ def get_player_battle_stats(player: Dict[str, Any]) -> Dict[str, int]:
         "spell_power": CLASSES[player["class"]].get("spell_power", 0),
     }
 
-    # питомец
-    pet_id = player.get("pet_id")
-    if pet_id and pet_id in PETS:
-        pet = PETS[pet_id]
+    if player["equipped_weapon"] and player["equipped_weapon"] in WEAPONS:
+        weapon = WEAPONS[player["equipped_weapon"]]
+        stats["attack"] += weapon["attack"]
+        stats["crit_chance"] += weapon["crit"]
+
+    if player["equipped_armor"] and player["equipped_armor"] in ARMOR:
+        armor = ARMOR[player["equipped_armor"]]
+        stats["defense"] += armor["defense"]
+
+    if player["pet_id"] and player["pet_id"] in PETS:
+        pet = PETS[player["pet_id"]]
         stats["attack"] += pet["attack_bonus"]
         stats["defense"] += pet["defense_bonus"]
-
-    # TODO: учёт оружия/брони
 
     return stats
 
 
 @safedb_execute
 def start_battle(
-    chat_id: int,
-    user_id: int,
-    enemy_id: str,
-    is_dungeon: bool = False,
-    location_id: str = "world",
+    chat_id: int, user_id: int, location_id: str
 ) -> Optional[Dict[str, Any]]:
     player = get_player(chat_id, user_id)
     if not player:
         return None
 
-    if enemy_id not in ENEMIES:
+    location = LOCATIONS.get(location_id)
+    if not location:
         return None
 
+    if player["level"] < location["min_level"]:
+        return None
+
+    if player["level"] > location["max_level"] + 10:
+        return None
+
+    possible_enemies = location["enemies"]
+    enemy_id = random.choice(possible_enemies)
     enemy_template = ENEMIES[enemy_id].copy()
-    enemy_hp = enemy_template["hp"]
-    enemy_damage = enemy_template["damage"]
+
+    level_diff = max(1, player["level"] - enemy_template["level"])
+    scale = 1.0 + level_diff * 0.12
+
+    enemy_template["current_hp"] = int(enemy_template["hp"] * scale)
+    enemy_template["scaled_damage"] = int(enemy_template["damage"] * scale)
 
     conn = get_db()
     c = conn.cursor()
@@ -729,20 +1278,19 @@ def start_battle(
         INSERT OR REPLACE INTO battles
         (user_id, chat_id, location_id, enemy_id, enemy_health, enemy_max_health,
          enemy_damage, is_boss, player_health, player_max_health, is_dungeon)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         """,
         (
             user_id,
             chat_id,
             location_id,
             enemy_id,
-            enemy_hp,
-            enemy_hp,
-            enemy_damage,
+            enemy_template["current_hp"],
+            int(enemy_template["hp"] * scale),
+            enemy_template["scaled_damage"],
             int(enemy_template.get("boss", False)),
             player["health"],
             player["max_health"],
-            int(is_dungeon),
         ),
     )
     conn.commit()
@@ -752,13 +1300,11 @@ def start_battle(
         "enemy_id": enemy_id,
         "enemy_name": enemy_template["name"],
         "enemy_emoji": enemy_template["emoji"],
-        "enemy_health": enemy_hp,
-        "enemy_max_health": enemy_hp,
-        "enemy_damage": enemy_damage,
+        "enemy_level": enemy_template["level"],
+        "enemy_health": enemy_template["current_hp"],
+        "enemy_max_health": int(enemy_template["hp"] * scale),
+        "enemy_damage": enemy_template["scaled_damage"],
         "is_boss": enemy_template.get("boss", False),
-        "player_health": player["health"],
-        "player_max_health": player["max_health"],
-        "is_dungeon": is_dungeon,
     }
 
 
@@ -788,147 +1334,7 @@ def end_battle(chat_id: int, user_id: int):
 
 
 @safedb_execute
-def start_dungeon_logic(chat_id: int, user_id: int) -> Optional[Dict[str, Any]]:
-    """
-    Логика старта подземелья:
-      - ставим/обновляем dungeon_progress
-      - создаём бой через battles с пометкой is_dungeon = 1
-      - враги усиливаются с этажом
-    """
-    conn = get_db()
-    c = conn.cursor()
-    c.execute(
-        "SELECT * FROM dungeon_progress WHERE user_id = ? AND chat_id = ?",
-        (user_id, chat_id),
-    )
-    row = c.fetchone()
-
-    if row and row["is_active"]:
-        # уже в подземелье
-        conn.close()
-        return None
-
-    player = get_player(chat_id, user_id)
-    if not player:
-        conn.close()
-        return None
-
-    floor = 1
-    if row:
-        floor = row["current_floor"]
-        c.execute(
-            "UPDATE dungeon_progress SET is_active = 1 WHERE user_id = ? AND chat_id = ?",
-            (user_id, chat_id),
-        )
-    else:
-        c.execute(
-            """
-            INSERT INTO dungeon_progress (user_id, chat_id, current_floor, is_active, enemies_killed)
-            VALUES (?, ?, ?, 1, 0)
-            """,
-            (user_id, chat_id, floor),
-        )
-
-    conn.commit()
-    conn.close()
-
-    # Выбираем врага и усиливаем по этажу
-    enemy_id = random.choice(list(ENEMIES.keys()))
-    enemy_template = ENEMIES[enemy_id].copy()
-    scale = 1.0 + (floor - 1) * 0.15
-    enemy_hp = int(enemy_template["hp"] * scale)
-    enemy_damage = int(enemy_template["damage"] * scale)
-
-    # создаём бой
-    conn = get_db()
-    c = conn.cursor()
-    c.execute(
-        """
-        INSERT OR REPLACE INTO battles
-        (user_id, chat_id, location_id, enemy_id, enemy_health, enemy_max_health,
-         enemy_damage, is_boss, player_health, player_max_health, is_dungeon)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-        """,
-        (
-            user_id,
-            chat_id,
-            f"dungeon_floor_{floor}",
-            enemy_id,
-            enemy_hp,
-            enemy_hp,
-            enemy_damage,
-            int(enemy_template.get("boss", False)),
-            player["health"],
-            player["max_health"],
-        ),
-    )
-    conn.commit()
-    conn.close()
-
-    return {
-        "floor": floor,
-        "enemy_id": enemy_id,
-        "enemy_name": enemy_template["name"],
-        "enemy_emoji": enemy_template["emoji"],
-        "enemy_health": enemy_hp,
-        "enemy_max_health": enemy_hp,
-        "enemy_damage": enemy_damage,
-    }
-
-
-@safedb_execute
-def end_dungeon_logic(chat_id: int, user_id: int, victory: bool):
-    conn = get_db()
-    c = conn.cursor()
-    c.execute(
-        "SELECT * FROM dungeon_progress WHERE user_id = ? AND chat_id = ?",
-        (user_id, chat_id),
-    )
-    row = c.fetchone()
-    if not row:
-        conn.close()
-        return
-
-    current_floor = row["current_floor"]
-
-    if victory:
-        # переход на следующий этаж
-        c.execute(
-            """
-            UPDATE dungeon_progress
-            SET current_floor = current_floor + 1,
-                enemies_killed = enemies_killed + 1,
-                is_active = 1
-            WHERE user_id = ? AND chat_id = ?
-            """,
-            (user_id, chat_id),
-        )
-        # апдейтим рейтинг если текущий этаж выше
-        c.execute(
-            "UPDATE players SET dungeon_rating = MAX(dungeon_rating, ?) WHERE user_id = ? AND chat_id = ?",
-            (current_floor + 1, user_id, chat_id),
-        )
-    else:
-        # поражение — сбрасываем прогресс, но сохраняем рейтинг
-        c.execute(
-            """
-            UPDATE dungeon_progress
-            SET current_floor = 1,
-                is_active = 0
-            WHERE user_id = ? AND chat_id = ?
-            """,
-            (user_id, chat_id),
-        )
-
-    conn.commit()
-    conn.close()
-
-
-@safedb_execute
-def perform_attack(chat_id: int, user_id: int) -> Dict[str, Any]:
-    """
-    Общая логика атаки (используется и для обычных боёв, и для подземелий).
-    """
+def perform_attack(chat_id: int, user_id: int, username: str) -> Dict[str, Any]:
     player = get_player(chat_id, user_id)
     battle = get_active_battle(chat_id, user_id)
     if not player or not battle:
@@ -936,7 +1342,10 @@ def perform_attack(chat_id: int, user_id: int) -> Dict[str, Any]:
 
     player_stats = get_player_battle_stats(player)
     damage, is_crit = calculate_damage(
-        player_stats["attack"], 0, player_stats["crit_chance"], player_stats["spell_power"]
+        player_stats["attack"],
+        0,
+        player_stats["crit_chance"],
+        player_stats["spell_power"],
     )
 
     new_enemy_hp = battle["enemy_health"] - damage
@@ -949,28 +1358,26 @@ def perform_attack(chat_id: int, user_id: int) -> Dict[str, Any]:
         "enemy_defeated": new_enemy_hp <= 0,
         "victory": False,
         "defeat": False,
-        "xpgained": 0,
-        "goldgained": 0,
-        "levelup": 0,
-        "goldlost": 0,
+        "xp_gained": 0,
+        "gold_gained": 0,
+        "level_up": 0,
+        "gold_lost": 0,
+        "loot": None,
         "is_dungeon": bool(battle["is_dungeon"]),
     }
 
     if new_enemy_hp <= 0:
-        # победа
         end_battle(chat_id, user_id)
-        enemy = ENEMIES.get(battle["enemy_id"], {"xp": 0, "gold": 0})
+        enemy = ENEMIES.get(battle["enemy_id"], {"xp": 0, "gold": 0, "loot": []})
         xp = enemy.get("xp", 0)
         gold = enemy.get("gold", 0)
 
-        # бонус от питомца
-        if player.get("pet_id") in PETS:
+        if player["pet_id"] in PETS:
             xp = int(xp * PETS[player["pet_id"]]["xp_bonus"])
 
         add_gold(chat_id, user_id, gold)
-        lvl = add_xp(chat_id, user_id, xp)
+        level_up = add_xp(chat_id, user_id, username, xp)
 
-        # обновляем статистику
         conn = get_db()
         c = conn.cursor()
         c.execute(
@@ -996,18 +1403,22 @@ def perform_attack(chat_id: int, user_id: int) -> Dict[str, Any]:
 
         result.update(
             {
-                "xpgained": xp,
-                "goldgained": gold,
-                "levelup": lvl,
+                "xp_gained": xp,
+                "gold_gained": gold,
+                "level_up": level_up,
                 "victory": True,
             }
         )
 
-        # если это подземелье — двигаем прогресс
+        if random.randint(1, 100) <= 40 and enemy.get("loot"):
+            loot_item = random.choice(enemy["loot"])
+            add_item(chat_id, user_id, loot_item)
+            result["loot"] = loot_item
+
         if battle["is_dungeon"]:
             end_dungeon_logic(chat_id, user_id, victory=True)
+
     else:
-        # враг жив — атакует игрока
         conn = get_db()
         c = conn.cursor()
         c.execute(
@@ -1027,11 +1438,11 @@ def perform_attack(chat_id: int, user_id: int) -> Dict[str, Any]:
         result["player_max_hp"] = player["max_health"]
 
         if new_player_hp <= 0:
-            # поражение
             end_battle(chat_id, user_id)
             gold_lost = int(player["gold"] * 0.1)
             if gold_lost > 0:
                 subtract_gold(chat_id, user_id, gold_lost)
+
             conn = get_db()
             c = conn.cursor()
             c.execute(
@@ -1045,10 +1456,14 @@ def perform_attack(chat_id: int, user_id: int) -> Dict[str, Any]:
             )
             conn.commit()
             conn.close()
+
             result["defeat"] = True
-            result["goldlost"] = gold_lost
+            result["gold_lost"] = gold_lost
+
+            if battle["is_dungeon"]:
+                end_dungeon_logic(chat_id, user_id, victory=False)
+
         else:
-            # просто обновляем HP игрока
             conn = get_db()
             c = conn.cursor()
             c.execute(
@@ -1059,6 +1474,146 @@ def perform_attack(chat_id: int, user_id: int) -> Dict[str, Any]:
             conn.close()
 
     return result
+
+
+# ===================== ПОДЗЕМЕЛЬЯ =====================
+
+
+@safedb_execute
+def start_dungeon(chat_id: int, user_id: int) -> Optional[Dict[str, Any]]:
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        "SELECT * FROM dungeon_progress WHERE user_id = ? AND chat_id = ?",
+        (user_id, chat_id),
+    )
+    row = c.fetchone()
+
+    if row and row["is_active"]:
+        conn.close()
+        return None
+
+    player = get_player(chat_id, user_id)
+    if not player:
+        conn.close()
+        return None
+
+    floor = 1
+    if not row:
+        c.execute(
+            """
+            INSERT INTO dungeon_progress (user_id, chat_id, current_floor, is_active)
+            VALUES (?, ?, ?, 1)
+            """,
+            (user_id, chat_id, floor),
+        )
+    else:
+        floor = row["current_floor"]
+        c.execute(
+            "UPDATE dungeon_progress SET is_active = 1 WHERE user_id = ? AND chat_id = ?",
+            (user_id, chat_id),
+        )
+
+    conn.commit()
+    conn.close()
+
+    enemy_id = random.choice(list(ENEMIES.keys()))
+    enemy_template = ENEMIES[enemy_id].copy()
+    scale = 1.0 + (floor - 1) * 0.15
+    enemy_template["current_hp"] = int(enemy_template["hp"] * scale)
+    enemy_template["scaled_damage"] = int(enemy_template["damage"] * scale)
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        """
+        INSERT OR REPLACE INTO battles
+        (user_id, chat_id, location_id, enemy_id, enemy_health, enemy_max_health,
+         enemy_damage, is_boss, player_health, player_max_health, is_dungeon)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        """,
+        (
+            user_id,
+            chat_id,
+            f"dungeon_floor_{floor}",
+            enemy_id,
+            enemy_template["current_hp"],
+            int(enemy_template["hp"] * scale),
+            enemy_template["scaled_damage"],
+            int(enemy_template.get("boss", False)),
+            player["health"],
+            player["max_health"],
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    return {
+        "floor": floor,
+        "enemy_id": enemy_id,
+        "enemy_name": enemy_template["name"],
+        "enemy_emoji": enemy_template["emoji"],
+        "enemy_health": enemy_template["current_hp"],
+        "enemy_max_health": int(enemy_template["hp"] * scale),
+        "enemy_damage": enemy_template["scaled_damage"],
+    }
+
+
+@safedb_execute
+def end_dungeon_logic(chat_id: int, user_id: int, victory: bool):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        "SELECT * FROM dungeon_progress WHERE user_id = ? AND chat_id = ?",
+        (user_id, chat_id),
+    )
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return
+
+    current_floor = row["current_floor"]
+
+    if victory:
+        c.execute(
+            """
+            UPDATE dungeon_progress
+            SET current_floor = current_floor + 1,
+                enemies_killed = enemies_killed + 1,
+                is_active = 1
+            WHERE user_id = ? AND chat_id = ?
+            """,
+            (user_id, chat_id),
+        )
+        c.execute(
+            "UPDATE players SET dungeon_rating = MAX(dungeon_rating, ?) WHERE user_id = ? AND chat_id = ?",
+            (current_floor + 1, user_id, chat_id),
+        )
+    else:
+        c.execute(
+            """
+            UPDATE dungeon_progress
+            SET current_floor = 1,
+                is_active = 0
+            WHERE user_id = ? AND chat_id = ?
+            """,
+            (user_id, chat_id),
+        )
+        c.execute(
+            "SELECT current_floor FROM dungeon_progress WHERE user_id = ? AND chat_id = ?",
+            (user_id, chat_id),
+        )
+        floor_row = c.fetchone()
+        if floor_row and floor_row["current_floor"] > 1:
+            player = get_player(chat_id, user_id)
+            if player:
+                c.execute(
+                    "UPDATE players SET dungeon_rating = ? WHERE user_id = ? AND chat_id = ?",
+                    (floor_row["current_floor"], user_id, chat_id),
+                )
+
+    conn.commit()
+    conn.close()
 
 
 # ===================== ПВП (ГЛОБАЛЬНОЕ) =====================
@@ -1095,33 +1650,14 @@ def confirm_pvp_search(chat_id: int, user_id: int):
 def cancel_pvp_search(chat_id: int, user_id: int):
     conn = get_db()
     c = conn.cursor()
-    c.execute("DELETE FROM pvp_queue WHERE user_id = ?", (user_id,))
+    c.execute("DELETE FROM pvp_queue WHERE user_id = ? AND chat_id = ?", (user_id, chat_id))
     conn.commit()
     conn.close()
 
 
 @safedb_execute
-def get_pvp_queue_status(chat_id: int, user_id: int) -> Optional[Dict[str, Any]]:
-    conn = get_db()
-    c = conn.cursor()
-    c.execute(
-        "SELECT * FROM pvp_queue WHERE user_id = ? AND chat_id = ?",
-        (user_id, chat_id),
-    )
-    row = c.fetchone()
-    conn.close()
-    return dict(row) if row else None
-
-
-@safedb_execute
 def find_pvp_opponent(chat_id: int, user_id: int) -> Optional[Dict[str, Any]]:
-    """
-    Глобальный поиск соперника:
-    - НЕ фильтруем по chat_id
-    - оба confirmed = 1
-    - оба is_waiting = 1
-    - уровень ±5
-    """
+    """ГЛОБАЛЬНЫЙ поиск соперника БЕЗ фильтра chat_id"""
     player = get_player(chat_id, user_id)
     if not player:
         return None
@@ -1158,10 +1694,10 @@ def find_pvp_opponent(chat_id: int, user_id: int) -> Optional[Dict[str, Any]]:
 
 
 @safedb_execute
-def pvp_battle(attacker_chat_id: int, attacker_id: int, defender_id: int) -> Dict[str, Any]:
-    """
-    ПВП бой между игроками из разных чатов.
-    """
+def pvp_battle(
+    attacker_chat_id: int, attacker_id: int, defender_id: int, username: str
+) -> Dict[str, Any]:
+    """БОЙ ПВП между игроками"""
     attacker = get_player(attacker_chat_id, attacker_id)
 
     conn = get_db()
@@ -1179,7 +1715,6 @@ def pvp_battle(attacker_chat_id: int, attacker_id: int, defender_id: int) -> Dic
     attacker_stats = get_player_battle_stats(attacker)
     defender_stats = get_player_battle_stats(defender)
 
-    # удар атакующего
     attacker_damage, attacker_crit = calculate_damage(
         attacker_stats["attack"],
         defender_stats["defense"],
@@ -1214,7 +1749,6 @@ def pvp_battle(attacker_chat_id: int, attacker_id: int, defender_id: int) -> Dic
             winner_id = defender_id
             reward_gold = int(attacker["gold"] * 0.05)
 
-    # обновляем БД
     conn = get_db()
     c = conn.cursor()
 
@@ -1226,21 +1760,21 @@ def pvp_battle(attacker_chat_id: int, attacker_id: int, defender_id: int) -> Dic
         (attacker_id, defender_id, attacker_chat_id, winner_id, reward_gold),
     )
 
-    # победитель
     c.execute(
         "UPDATE players SET pvp_wins = pvp_wins + 1, gold = gold + ? WHERE user_id = ?",
         (reward_gold, winner_id),
     )
 
-    # проигравший
     loser_id = defender_id if winner_id == attacker_id else attacker_id
     c.execute(
         "UPDATE players SET pvp_losses = pvp_losses + 1, health = max_health WHERE user_id = ?",
         (loser_id,),
     )
 
-    # убираем обоих из очереди
-    c.execute("DELETE FROM pvp_queue WHERE user_id IN (?, ?)", (attacker_id, defender_id))
+    c.execute(
+        "DELETE FROM pvp_queue WHERE user_id IN (?, ?)",
+        (attacker_id, defender_id),
+    )
 
     conn.commit()
     conn.close()
@@ -1252,10 +1786,65 @@ def pvp_battle(attacker_chat_id: int, attacker_id: int, defender_id: int) -> Dic
         "defender_damage": defender_damage,
         "defender_crit": defender_crit,
         "winner_id": winner_id,
-        "winner_name": attacker["username"] if winner_id == attacker_id else defender["username"],
-        "loser_name": defender["username"] if winner_id == attacker_id else attacker["username"],
+        "winner_name": attacker["username"]
+        if winner_id == attacker_id
+        else defender["username"],
+        "loser_name": defender["username"]
+        if winner_id == attacker_id
+        else attacker["username"],
         "reward_gold": reward_gold,
         "defender_chat_id": defender_chat_id,
+    }
+
+
+# ===================== КРАФТИНГ =====================
+
+
+@safedb_execute
+def craft_item(chat_id: int, user_id: int, recipe_id: str) -> Dict[str, Any]:
+    player = get_player(chat_id, user_id)
+    recipe = CRAFTING_RECIPES.get(recipe_id)
+
+    if not player or not recipe:
+        return {"success": False, "message": "Рецепт не найден."}
+
+    if player["level"] < recipe["level"]:
+        return {
+            "success": False,
+            "message": f"Нужен уровень {recipe['level']}",
+        }
+
+    if player["gold"] < recipe["gold"]:
+        return {"success": False, "message": f"Не хватает золота"}
+
+    for material, needed in recipe["materials"].items():
+        have = get_material(chat_id, user_id, material)
+        if have < needed:
+            material_name = MATERIALS.get(material, {}).get("name", material)
+            return {
+                "success": False,
+                "message": f"Не хватает {material_name}",
+            }
+
+    for material, needed in recipe["materials"].items():
+        remove_item(chat_id, user_id, material, needed)
+
+    subtract_gold(chat_id, user_id, recipe["gold"])
+    add_item(chat_id, user_id, recipe["result"])
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE players SET craft_count = craft_count + 1 WHERE user_id = ? AND chat_id = ?",
+        (user_id, chat_id),
+    )
+    conn.commit()
+    conn.close()
+
+    return {
+        "success": True,
+        "item": recipe["result"],
+        "name": recipe["name"],
     }
 
 
@@ -1268,7 +1857,8 @@ def get_global_leaderboard(chat_id: int, limit: int = 10) -> List[Dict[str, Any]
     c = conn.cursor()
     c.execute(
         """
-        SELECT user_id, username, level, gold, total_kills, total_bosses_killed
+        SELECT user_id, username, level, gold, total_kills, total_bosses_killed,
+               total_battles_won, total_battles_lost, pvp_wins, pvp_losses
         FROM players
         WHERE chat_id = ?
         ORDER BY level DESC, gold DESC, total_kills DESC
@@ -1276,9 +1866,9 @@ def get_global_leaderboard(chat_id: int, limit: int = 10) -> List[Dict[str, Any]
         """,
         (chat_id, limit),
     )
-    rows = c.fetchall()
+    data = [dict(r) for r in c.fetchall()]
     conn.close()
-    return [dict(r) for r in rows]
+    return data
 
 
 @safedb_execute
@@ -1298,9 +1888,9 @@ def get_pvp_leaderboard(chat_id: int, limit: int = 10) -> List[Dict[str, Any]]:
         """,
         (chat_id, limit),
     )
-    rows = c.fetchall()
+    data = [dict(r) for r in c.fetchall()]
     conn.close()
-    return [dict(r) for r in rows]
+    return data
 
 
 @safedb_execute
@@ -1317,9 +1907,9 @@ def get_dungeon_leaderboard(chat_id: int, limit: int = 10) -> List[Dict[str, Any
         """,
         (chat_id, limit),
     )
-    rows = c.fetchall()
+    data = [dict(r) for r in c.fetchall()]
     conn.close()
-    return [dict(r) for r in rows]
+    return data
 
 
 @safedb_execute
@@ -1343,7 +1933,7 @@ def get_player_position(chat_id: int, user_id: int) -> int:
     return int(row["pos"]) + 1 if row else 1
 
 
-# ===================== ОБРАБОТЧИКИ БОТА =====================
+# ===================== TELEGRAM ОБРАБОТЧИКИ =====================
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1441,6 +2031,10 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("🎒 Инвентарь", callback_data="inventory"),
         ],
         [
+            InlineKeyboardButton("🏪 Магазин", callback_data="shop"),
+            InlineKeyboardButton("⚒️ Крафтинг", callback_data="crafting"),
+        ],
+        [
             InlineKeyboardButton("⚔️ Охота", callback_data="locations"),
             InlineKeyboardButton("🏰 Подземелье", callback_data="dungeon"),
         ],
@@ -1472,6 +2066,7 @@ async def cb_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     info = CLASSES[player["class"]]
     pet = PETS.get(player["pet_id"], PETS["wolf"])
     stats = get_player_battle_stats(player)
+
     text = (
         f"👤 Профиль: {user.first_name}\n\n"
         f"{info['emoji']} Класс: {info['name']} (ур. {player['level']}/{MAX_LEVEL})\n"
@@ -1514,20 +2109,434 @@ async def cb_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
             elif iid in MATERIALS:
                 m = MATERIALS[iid]
                 lines.append(f"{m['emoji']} {m['name']} x{qty}")
+            elif iid in PETS:
+                p = PETS[iid]
+                lines.append(f"{p['emoji']} {p['name']} x{qty}")
+            elif iid in RUNES:
+                r = RUNES[iid]
+                lines.append(f"{r['emoji']} {r['name']} x{qty}")
             elif iid == "health_potion":
                 lines.append(f"🧪 Зелье лечения x{qty}")
             else:
                 lines.append(f"{iid} x{qty}")
         text = "\n".join(lines)
 
-    keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")]]
+    keyboard = [
+        [InlineKeyboardButton("🛠️ Экипировка", callback_data="equipment")],
+        [InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")],
+    ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
-# ------ Локации (обычная охота) ------
+async def cb_show_equipment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    player = get_player(chat.id, user.id)
+    inventory = get_inventory(chat.id, user.id)
+
+    weapons_in_inv = [it for it in inventory if it["item_id"] in WEAPONS]
+    armor_in_inv = [it for it in inventory if it["item_id"] in ARMOR]
+
+    text = "🛠️ ЭКИПИРОВКА\n\n"
+
+    if player["equipped_weapon"]:
+        weapon = WEAPONS.get(player["equipped_weapon"])
+        if weapon:
+            text += f"Оружие: {weapon['emoji']} {weapon['name']} (атака +{weapon['attack']})\n"
+    else:
+        text += "Оружие: не экипировано\n"
+
+    if player["equipped_armor"]:
+        armor = ARMOR.get(player["equipped_armor"])
+        if armor:
+            text += (
+                f"Броня: {armor['emoji']} {armor['name']} "
+                f"(защита +{armor['defense']}, HP +{armor['health']})\n"
+            )
+    else:
+        text += "Броня: не экипирована\n"
+
+    keyboard: List[List[InlineKeyboardButton]] = []
+    if weapons_in_inv:
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    "🔧 Смена оружия",
+                    callback_data="select_weapon",
+                )
+            ]
+        )
+    if armor_in_inv:
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    "🔧 Смена брони",
+                    callback_data="select_armor",
+                )
+            ]
+        )
+
+    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="inventory")])
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
-async def cb_locations(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cb_select_weapon_to_equip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    inventory = get_inventory(chat.id, user.id)
+    weapons = [it for it in inventory if it["item_id"] in WEAPONS]
+
+    if not weapons:
+        await query.answer("Нет оружия в инвентаре.", show_alert=True)
+        return
+
+    text = "Выбери оружие:\n"
+    keyboard: List[List[InlineKeyboardButton]] = []
+
+    for weapon_inv in weapons:
+        wid = weapon_inv["item_id"]
+        weapon = WEAPONS[wid]
+        text += f"{weapon['emoji']} {weapon['name']} (атака +{weapon['attack']})\n"
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    f"✅ {weapon['emoji']} {weapon['name']}",
+                    callback_data=f"equip_weapon_{wid}",
+                )
+            ]
+        )
+
+    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="equipment")])
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def cb_equip_weapon_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    weapon_id = query.data.replace("equip_weapon_", "")
+    if equip_weapon(chat.id, user.id, weapon_id):
+        weapon = WEAPONS[weapon_id]
+        await query.answer(
+            f"✅ Экипирован: {weapon['emoji']} {weapon['name']}",
+            show_alert=False,
+        )
+        await cb_show_equipment(update, context)
+    else:
+        await query.answer("Не удалось экипировать оружие.", show_alert=True)
+
+
+async def cb_select_armor_to_equip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    inventory = get_inventory(chat.id, user.id)
+    armor_list = [it for it in inventory if it["item_id"] in ARMOR]
+
+    if not armor_list:
+        await query.answer("Нет брони в инвентаре.", show_alert=True)
+        return
+
+    text = "Выбери броню:\n"
+    keyboard: List[List[InlineKeyboardButton]] = []
+
+    for armor_inv in armor_list:
+        aid = armor_inv["item_id"]
+        armor = ARMOR[aid]
+        text += (
+            f"{armor['emoji']} {armor['name']} "
+            f"(защита +{armor['defense']}, HP +{armor['health']})\n"
+        )
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    f"✅ {armor['emoji']} {armor['name']}",
+                    callback_data=f"equip_armor_{aid}",
+                )
+            ]
+        )
+
+    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="equipment")])
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def cb_equip_armor_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    armor_id = query.data.replace("equip_armor_", "")
+    if equip_armor(chat.id, user.id, armor_id):
+        armor = ARMOR[armor_id]
+        await query.answer(
+            f"✅ Экипирована: {armor['emoji']} {armor['name']}",
+            show_alert=False,
+        )
+        await cb_show_equipment(update, context)
+    else:
+        await query.answer("Не удалось экипировать броню.", show_alert=True)
+
+
+# ===================== МАГАЗИН =====================
+
+
+async def cb_show_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    player = get_player(chat.id, user.id)
+
+    text = f"{CLASSES[player['class']]['emoji']} МАГАЗИН\n\n"
+    keyboard = [
+        [InlineKeyboardButton("🗡️ Оружие", callback_data="shop_weapons")],
+        [InlineKeyboardButton("🛡️ Броня", callback_data="shop_armor")],
+        [InlineKeyboardButton("🐾 Питомцы", callback_data="shop_pets")],
+        [InlineKeyboardButton("⚡ Руны", callback_data="shop_runes")],
+        [InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")],
+    ]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def cb_show_weapons_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    player = get_player(chat.id, user.id)
+
+    text = f"{CLASSES[player['class']]['emoji']} МАГАЗИН - ОРУЖИЕ\n\n"
+    keyboard: List[List[InlineKeyboardButton]] = []
+
+    for weapon_id, weapon_info in WEAPONS.items():
+        if (
+            weapon_info.get("class")
+            and weapon_info["class"] != player["class"]
+        ):
+            continue
+
+        can_afford = player["gold"] >= weapon_info["price"]
+        status = "✅" if can_afford else "❌"
+
+        text += (
+            f"{status} {weapon_info['emoji']} {weapon_info['name']} "
+            f"- атака +{weapon_info['attack']} - {weapon_info['price']}💰\n"
+        )
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    f"{status} {weapon_info['emoji']} {weapon_info['name']}",
+                    callback_data=f"buy_weapon_{weapon_id}",
+                )
+            ]
+        )
+
+    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="shop")])
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def cb_show_armor_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    player = get_player(chat.id, user.id)
+
+    text = f"{CLASSES[player['class']]['emoji']} МАГАЗИН - БРОНЯ\n\n"
+    keyboard: List[List[InlineKeyboardButton]] = []
+
+    for armor_id, armor_info in ARMOR.items():
+        if (
+            armor_info.get("class")
+            and armor_info["class"] != player["class"]
+        ):
+            continue
+
+        can_afford = player["gold"] >= armor_info["price"]
+        status = "✅" if can_afford else "❌"
+
+        text += (
+            f"{status} {armor_info['emoji']} {armor_info['name']} "
+            f"- защита +{armor_info['defense']}, HP +{armor_info['health']} - {armor_info['price']}💰\n"
+        )
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    f"{status} {armor_info['emoji']} {armor_info['name']}",
+                    callback_data=f"buy_armor_{armor_id}",
+                )
+            ]
+        )
+
+    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="shop")])
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def cb_show_pets_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    player = get_player(chat.id, user.id)
+
+    text = f"{CLASSES[player['class']]['emoji']} МАГАЗИН - ПИТОМЦЫ\n\n"
+    keyboard: List[List[InlineKeyboardButton]] = []
+
+    for pet_id, pet_info in PETS.items():
+        can_afford = player["gold"] >= pet_info["price"]
+        status = "✅" if can_afford else "❌"
+
+        text += (
+            f"{status} {pet_info['emoji']} {pet_info['name']} "
+            f"- атака +{pet_info['attack_bonus']}, защита +{pet_info['defense_bonus']} - {pet_info['price']}💰\n"
+        )
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    f"{status} {pet_info['emoji']} {pet_info['name']}",
+                    callback_data=f"buy_pet_{pet_id}",
+                )
+            ]
+        )
+
+    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="shop")])
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def cb_show_runes_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    player = get_player(chat.id, user.id)
+
+    text = f"{CLASSES[player['class']]['emoji']} МАГАЗИН - РУНЫ\n\n"
+    keyboard: List[List[InlineKeyboardButton]] = []
+
+    for rune_id, rune_info in RUNES.items():
+        can_afford = player["gold"] >= rune_info["price"]
+        status = "✅" if can_afford else "❌"
+
+        text += (
+            f"{status} {rune_info['emoji']} {rune_info['name']} ({rune_info['type']}) - {rune_info['price']}💰\n"
+        )
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    f"{status} {rune_info['emoji']} {rune_info['name']}",
+                    callback_data=f"buy_rune_{rune_id}",
+                )
+            ]
+        )
+
+    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="shop")])
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def cb_buy_weapon(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    weapon_id = query.data.replace("buy_weapon_", "")
+    if weapon_id not in WEAPONS:
+        await query.answer("Оружие не найдено.", show_alert=True)
+        return
+
+    player = get_player(chat.id, user.id)
+    if not can_use_item(player["class"], weapon_id):
+        await query.answer("Не для твоего класса!", show_alert=True)
+        return
+
+    if buy_item(chat.id, user.id, weapon_id):
+        weapon = WEAPONS[weapon_id]
+        await query.answer(
+            f"✅ Куплено: {weapon['emoji']} {weapon['name']}",
+            show_alert=True,
+        )
+        await cb_show_weapons_shop(update, context)
+    else:
+        await query.answer("❌ Не хватает золота или уже есть.", show_alert=True)
+
+
+async def cb_buy_armor(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    armor_id = query.data.replace("buy_armor_", "")
+    if armor_id not in ARMOR:
+        await query.answer("Броня не найдена.", show_alert=True)
+        return
+
+    player = get_player(chat.id, user.id)
+    if not can_use_item(player["class"], armor_id):
+        await query.answer("Не для твоего класса!", show_alert=True)
+        return
+
+    if buy_item(chat.id, user.id, armor_id):
+        armor = ARMOR[armor_id]
+        await query.answer(
+            f"✅ Куплено: {armor['emoji']} {armor['name']}",
+            show_alert=True,
+        )
+        await cb_show_armor_shop(update, context)
+    else:
+        await query.answer("❌ Не хватает золота или уже есть.", show_alert=True)
+
+
+async def cb_buy_pet(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    pet_id = query.data.replace("buy_pet_", "")
+    if pet_id not in PETS:
+        await query.answer("Питомец не найден.", show_alert=True)
+        return
+
+    if buy_pet(chat.id, user.id, pet_id):
+        pet = PETS[pet_id]
+        await query.answer(
+            f"✅ Куплено: {pet['emoji']} {pet['name']}",
+            show_alert=True,
+        )
+        await cb_show_pets_shop(update, context)
+    else:
+        await query.answer("❌ Не хватает золота.", show_alert=True)
+
+
+async def cb_buy_rune(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    rune_id = query.data.replace("buy_rune_", "")
+    if rune_id not in RUNES:
+        await query.answer("Руна не найдена.", show_alert=True)
+        return
+
+    if buy_item(chat.id, user.id, rune_id):
+        rune = RUNES[rune_id]
+        await query.answer(
+            f"✅ Куплено: {rune['emoji']} {rune['name']}",
+            show_alert=True,
+        )
+        await cb_show_runes_shop(update, context)
+    else:
+        await query.answer("❌ Не хватает золота.", show_alert=True)
+
+
+# ===================== ЛОКАЦИИ И БОИ =====================
+
+
+async def cb_show_locations(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
     chat = query.message.chat
@@ -1582,16 +2591,14 @@ async def cb_select_location(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.answer("Персонаж не найден.", show_alert=True)
         return
 
-    if player["level"] < loc["min_level"] or player["level"] > loc["max_level"]:
+    if player["level"] < loc["min_level"] or player["level"] > loc["max_level"] + 10:
         await query.answer(
-            f"Доступно только для уровней {loc['min_level']}-{loc['max_level']}.",
+            f"Доступно для уровней {loc['min_level']}-{loc['max_level']}.",
             show_alert=True,
         )
         return
 
-    # выбираем врага
-    enemy_id = random.choice(loc["enemies"])
-    battle = start_battle(chat.id, user.id, enemy_id, is_dungeon=False, location_id=loc_id)
+    battle = start_battle(chat.id, user.id, loc_id)
     if not battle:
         await query.answer("Не удалось начать бой.", show_alert=True)
         return
@@ -1611,9 +2618,6 @@ async def cb_select_location(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
-# ------ Атака / зелье / бегство ------
-
-
 async def cb_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
@@ -1629,21 +2633,18 @@ async def cb_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("Нет активного боя.", show_alert=True)
         return
 
-    result = perform_attack(chat.id, user.id)
+    result = perform_attack(chat.id, user.id, player["username"])
     if not result.get("success"):
         await query.answer(result.get("message", "Ошибка."), show_alert=True)
         return
 
-    # Формируем текст
     lines = ["⚔️ Атака\n"]
     if result["is_crit"]:
         lines.append(f"💥 Критический удар! Ты нанёс {result['damage']} урона.")
     else:
         lines.append(f"Ты нанёс {result['damage']} урона.")
 
-    lines.append(
-        f"❤️ HP врага: {result['enemy_hp']}/{result['enemy_max_hp']}"
-    )
+    lines.append(f"❤️ HP врага: {result['enemy_hp']}/{result['enemy_max_hp']}")
 
     if result.get("enemy_damage"):
         lines.append(
@@ -1655,19 +2656,20 @@ async def cb_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if result["victory"]:
         lines.append(
-            f"\n🏆 Победа!\n+{result['xpgained']} XP, +{result['goldgained']} золота."
+            f"\n🏆 Победа!\n+{result['xp_gained']} XP, +{result['gold_gained']} золота."
         )
-        if result["levelup"] > 0:
-            lines.append(f"⬆️ Уровень повышен на {result['levelup']}!")
+        if result["level_up"] > 0:
+            lines.append(f"⬆️ Уровень повышен на {result['level_up']}!")
+        if result["loot"]:
+            loot = MATERIALS.get(result["loot"], {"name": result["loot"]})
+            lines.append(f"Добыча: {loot.get('name', result['loot'])}")
 
         if result["is_dungeon"]:
             lines.append("\n🏰 Ты прошёл этаж подземелья!")
 
         keyboard.append([InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")])
     elif result["defeat"]:
-        lines.append(
-            f"\n💀 Поражение.\nПотеряно золота: {result['goldlost']}."
-        )
+        lines.append(f"\n💀 Поражение.\nПотеряно золота: {result['gold_lost']}.")
         keyboard.append([InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")])
     else:
         keyboard.append([InlineKeyboardButton("⚔️ Атаковать", callback_data="attack")])
@@ -1707,7 +2709,6 @@ async def cb_use_potion(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.commit()
     conn.close()
 
-    # враг атакует после использования зелья
     enemy_damage, _ = calculate_damage(battle["enemy_damage"], player["defense"], 5)
     new_player_hp = new_hp - enemy_damage
 
@@ -1737,9 +2738,7 @@ async def cb_use_potion(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         conn.commit()
         conn.close()
-        lines.append(
-            f"💀 Поражение. Потеряно золота: {gold_lost}."
-        )
+        lines.append(f"💀 Поражение. Потеряно золота: {gold_lost}.")
         keyboard.append([InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")])
     else:
         conn = get_db()
@@ -1750,9 +2749,7 @@ async def cb_use_potion(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         conn.commit()
         conn.close()
-        lines.append(
-            f"Твой HP: {new_player_hp}/{player['max_health']}."
-        )
+        lines.append(f"Твой HP: {new_player_hp}/{player['max_health']}.")
         keyboard.append([InlineKeyboardButton("⚔️ Атаковать", callback_data="attack")])
         keyboard.append([InlineKeyboardButton("🏃 Сбежать", callback_data="escape")])
 
@@ -1772,7 +2769,6 @@ async def cb_escape(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("Нет активного боя.", show_alert=True)
         return
 
-    # шанс 50% сбежать без наказания
     if random.randint(1, 100) <= 50:
         end_battle(chat.id, user.id)
         text = "🏃 Ты успешно сбежал из боя."
@@ -1782,7 +2778,6 @@ async def cb_escape(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # не удалось сбежать — враг бьёт
     enemy_damage, _ = calculate_damage(battle["enemy_damage"], player["defense"], 5)
     new_player_hp = player["health"] - enemy_damage
 
@@ -1810,9 +2805,7 @@ async def cb_escape(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         conn.commit()
         conn.close()
-        lines.append(
-            f"💀 Поражение. Потеряно золота: {gold_lost}."
-        )
+        lines.append(f"💀 Поражение. Потеряно золота: {gold_lost}.")
         keyboard.append([InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")])
     else:
         conn = get_db()
@@ -1823,18 +2816,18 @@ async def cb_escape(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         conn.commit()
         conn.close()
-        lines.append(
-            f"Твой HP: {new_player_hp}/{player['max_health']}."
-        )
+        lines.append(f"Твой HP: {new_player_hp}/{player['max_health']}.")
         keyboard.append([InlineKeyboardButton("⚔️ Атаковать", callback_data="attack")])
-        keyboard.append([InlineKeyboardButton("🏃 Попробовать ещё раз", callback_data="escape")])
+        keyboard.append(
+            [InlineKeyboardButton("🏃 Попробовать ещё раз", callback_data="escape")]
+        )
 
     await query.edit_message_text(
         "\n".join(lines), reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 
-# ------ Подземелья ------
+# ===================== ПОДЗЕМЕЛЬЯ =====================
 
 
 async def cb_dungeon_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1885,7 +2878,7 @@ async def cb_dungeon_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = query.from_user
     chat = query.message.chat
 
-    result = start_dungeon_logic(chat.id, user.id)
+    result = start_dungeon(chat.id, user.id)
     if not result:
         await query.answer("Не удалось начать подземелье.", show_alert=True)
         return
@@ -1935,7 +2928,7 @@ async def cb_dungeon_continue(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
 
 
-# ------ ПВП (меню и бой) ------
+# ===================== ПВП =====================
 
 
 async def cb_pvp_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2008,7 +3001,6 @@ async def cb_pvp_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")],
         ]
 
-        # помечаем обоих как не ожидающих
         conn = get_db()
         c = conn.cursor()
         c.execute(
@@ -2054,7 +3046,7 @@ async def cb_pvp_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     defender_id = int(parts[0])
     defender_chat_id = int(parts[1])
 
-    result = pvp_battle(chat.id, user.id, defender_id)
+    result = pvp_battle(chat.id, user.id, defender_id, user.username or "Игрок")
     if not result.get("success"):
         await query.answer(result.get("message", "Ошибка ПВП."), show_alert=True)
         return
@@ -2121,30 +3113,106 @@ async def cb_pvp_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Не удалось отправить ПВП результат противнику: {e}")
 
 
-# ------ Рейтинги ------
+# ===================== КРАФТИНГ =====================
 
 
-async def cb_ratings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cb_crafting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    text = (
-        "🏆 Рейтинги\n\n"
-        "Выбери таблицу:"
-    )
+
+    text = "⚒️ КРАФТИНГ\n\n"
+    keyboard: List[List[InlineKeyboardButton]] = []
+
+    for recipe_id, recipe in list(CRAFTING_RECIPES.items()):
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    f"{recipe['emoji']} {recipe['name']}",
+                    callback_data=f"craft_{recipe_id}",
+                )
+            ]
+        )
+
+    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")])
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def cb_craft(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    recipe_id = query.data.replace("craft_", "")
+    recipe = CRAFTING_RECIPES.get(recipe_id)
+    if not recipe:
+        await query.answer("Рецепт не найден.", show_alert=True)
+        return
+
+    player = get_player(chat.id, user.id)
+    if not player:
+        await query.answer("Персонаж не найден.", show_alert=True)
+        return
+
+    text = f"{recipe['emoji']} {recipe['name']}\n\n"
+
+    has_all = True
+    for material, needed in recipe["materials"].items():
+        have = get_material(chat.id, user.id, material)
+        material_info = MATERIALS[material]
+        status = "✅" if have >= needed else "❌"
+        text += f"{status} {material_info['emoji']} {material_info['name']}: {have}/{needed}\n"
+        if have < needed:
+            has_all = False
+
+    gold_ok = player["gold"] >= recipe["gold"]
+    text += f"\n{'✅' if gold_ok else '❌'} Золото: {player['gold']}/{recipe['gold']}\n"
+
+    level_ok = player["level"] >= recipe["level"]
+    text += f"{'✅' if level_ok else '❌'} Уровень: {player['level']}/{recipe['level']}\n"
+
+    keyboard: List[List[InlineKeyboardButton]] = []
+    if has_all and gold_ok and level_ok:
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    "✅ Крафтить",
+                    callback_data=f"craft_confirm_{recipe_id}",
+                )
+            ]
+        )
+    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="crafting")])
+
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def cb_craft_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    chat = query.message.chat
+
+    recipe_id = query.data.replace("craft_confirm_", "")
+    result = craft_item(chat.id, user.id, recipe_id)
+    if not result["success"]:
+        await query.answer(result["message"], show_alert=True)
+        return
+
+    text = f"✅ Успешно скрафчено!\n\n🎁 Получено: {result['name']}"
+    keyboard = [[InlineKeyboardButton("⬅️ Крафтинг", callback_data="crafting")]]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+# ===================== РЕЙТИНГИ =====================
+
+
+async def cb_ratings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    text = "🏆 Рейтинги\n\nВыбери таблицу:"
     keyboard = [
-        [
-            InlineKeyboardButton("🌍 Общий рейтинг", callback_data="rating_global"),
-        ],
-        [
-            InlineKeyboardButton("⚔️ ПВП рейтинг", callback_data="rating_pvp"),
-        ],
-        [
-            InlineKeyboardButton("🏰 Рейтинг подземелий", callback_data="rating_dungeon"),
-        ],
+        [InlineKeyboardButton("🌍 Общий рейтинг", callback_data="rating_global")],
+        [InlineKeyboardButton("⚔️ ПВП рейтинг", callback_data="rating_pvp")],
+        [InlineKeyboardButton("🏰 Рейтинг подземелий", callback_data="rating_dungeon")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")],
     ]
-    await query.edit_message_text(
-        text, reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 async def cb_rating_global(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2226,14 +3294,14 @@ async def cb_rating_dungeon(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# ===================== FASTAPI ДЛЯ RENDER (PORT BINDING) =====================
+# ===================== FASTAPI ДЛЯ RENDER =====================
 
 api_app = FastAPI()
 
 
 @api_app.get("/")
 async def root():
-    return {"status": "ok", "message": "RuneQuestRPG bot is running"}
+    return {"status": "ok", "message": "RuneQuestRPG bot v5.3 is running"}
 
 
 @api_app.get("/health")
@@ -2241,7 +3309,7 @@ async def health():
     return {"status": "healthy"}
 
 
-# ===================== ЗАПУСК БОТА И СЕРВЕРА =====================
+# ===================== ЗАПУСК =====================
 
 
 def run_fastapi():
@@ -2254,46 +3322,58 @@ def main():
 
     init_database()
 
-    # запускаем FastAPI-сервер в фоне (для Render Web Service port binding)
     threading.Thread(target=run_fastapi, daemon=True).start()
     logger.info(f"📡 FastAPI server started on 0.0.0.0:{PORT}")
 
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # Команда /start
     application.add_handler(CommandHandler("start", cmd_start))
 
-    # Главное меню и базовые колбеки
     application.add_handler(CallbackQueryHandler(cb_select_class, pattern=r"^class_"))
     application.add_handler(CallbackQueryHandler(show_main_menu, pattern=r"^main_menu$"))
     application.add_handler(CallbackQueryHandler(cb_profile, pattern=r"^profile$"))
     application.add_handler(CallbackQueryHandler(cb_inventory, pattern=r"^inventory$"))
+    application.add_handler(CallbackQueryHandler(cb_show_equipment, pattern=r"^equipment$"))
+    application.add_handler(CallbackQueryHandler(cb_select_weapon_to_equip, pattern=r"^select_weapon$"))
+    application.add_handler(CallbackQueryHandler(cb_equip_weapon_handler, pattern=r"^equip_weapon_"))
+    application.add_handler(CallbackQueryHandler(cb_select_armor_to_equip, pattern=r"^select_armor$"))
+    application.add_handler(CallbackQueryHandler(cb_equip_armor_handler, pattern=r"^equip_armor_"))
 
-    # Локации и бой
-    application.add_handler(CallbackQueryHandler(cb_locations, pattern=r"^locations$"))
+    application.add_handler(CallbackQueryHandler(cb_show_shop, pattern=r"^shop$"))
+    application.add_handler(CallbackQueryHandler(cb_show_weapons_shop, pattern=r"^shop_weapons$"))
+    application.add_handler(CallbackQueryHandler(cb_show_armor_shop, pattern=r"^shop_armor$"))
+    application.add_handler(CallbackQueryHandler(cb_show_pets_shop, pattern=r"^shop_pets$"))
+    application.add_handler(CallbackQueryHandler(cb_show_runes_shop, pattern=r"^shop_runes$"))
+    application.add_handler(CallbackQueryHandler(cb_buy_weapon, pattern=r"^buy_weapon_"))
+    application.add_handler(CallbackQueryHandler(cb_buy_armor, pattern=r"^buy_armor_"))
+    application.add_handler(CallbackQueryHandler(cb_buy_pet, pattern=r"^buy_pet_"))
+    application.add_handler(CallbackQueryHandler(cb_buy_rune, pattern=r"^buy_rune_"))
+
+    application.add_handler(CallbackQueryHandler(cb_show_locations, pattern=r"^locations$"))
     application.add_handler(CallbackQueryHandler(cb_select_location, pattern=r"^loc_"))
     application.add_handler(CallbackQueryHandler(cb_attack, pattern=r"^attack$"))
     application.add_handler(CallbackQueryHandler(cb_use_potion, pattern=r"^use_potion$"))
     application.add_handler(CallbackQueryHandler(cb_escape, pattern=r"^escape$"))
 
-    # Подземелья
     application.add_handler(CallbackQueryHandler(cb_dungeon_menu, pattern=r"^dungeon$"))
     application.add_handler(CallbackQueryHandler(cb_dungeon_start, pattern=r"^dungeon_start$"))
     application.add_handler(CallbackQueryHandler(cb_dungeon_continue, pattern=r"^dungeon_continue$"))
 
-    # ПВП
     application.add_handler(CallbackQueryHandler(cb_pvp_menu, pattern=r"^pvp_menu$"))
     application.add_handler(CallbackQueryHandler(cb_pvp_check, pattern=r"^pvp_check$"))
     application.add_handler(CallbackQueryHandler(cb_pvp_cancel, pattern=r"^pvp_cancel$"))
     application.add_handler(CallbackQueryHandler(cb_pvp_start, pattern=r"^pvp_start_\d+_\d+$"))
 
-    # Рейтинги
-    application.add_handler(CallbackQueryHandler(cb_ratings_menu, pattern=r"^ratings$"))
+    application.add_handler(CallbackQueryHandler(cb_crafting, pattern=r"^crafting$"))
+    application.add_handler(CallbackQueryHandler(cb_craft, pattern=r"^craft_"))
+    application.add_handler(CallbackQueryHandler(cb_craft_confirm, pattern=r"^craft_confirm_"))
+
+    application.add_handler(CallbackQueryHandler(cb_ratings, pattern=r"^ratings$"))
     application.add_handler(CallbackQueryHandler(cb_rating_global, pattern=r"^rating_global$"))
     application.add_handler(CallbackQueryHandler(cb_rating_pvp, pattern=r"^rating_pvp$"))
     application.add_handler(CallbackQueryHandler(cb_rating_dungeon, pattern=r"^rating_dungeon$"))
 
-    logger.info("✅ RuneQuestRPG bot запущен. Ожидаем апдейты...")
+    logger.info("✅ RuneQuestRPG bot v5.3 запущен. Ожидаем апдейты...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

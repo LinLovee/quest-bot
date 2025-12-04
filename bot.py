@@ -3,21 +3,15 @@
 ║                                                                            ║
 ║        🎮 RUNEQUESTRPG BOT - ПОЛНОФУНКЦИОНАЛЬНАЯ RPG В TELEGRAM 🎮        ║
 ║                                                                            ║
-║  Версия: 4.1 ULTRA (7000+ строк кода)                                     ║
+║  Версия: 4.2 ULTRA (3500+ строк кода)                                     ║
 ║  Статус: ✅ ПОЛНОСТЬЮ ФУНКЦИОНАЛЕН И ОПТИМИЗИРОВАН                         ║
 ║  Автор: AI Developer                                                       ║
 ║  Дата: 2024-2025                                                           ║
 ║  Язык: Python 3.10+                                                        ║
 ║  Фреймворк: python-telegram-bot 3.0+                                       ║
 ║                                                                            ║
-║  🎮 СИСТЕМА: RuneQuestRPG - Полнофункциональная текстовая RPG             ║
-║                                                                            ║
 ╚════════════════════════════════════════════════════════════════════════════╝
 """
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ⚙️ ИМПОРТЫ И НАСТРОЙКИ ОКРУЖЕНИЯ
-# ─────────────────────────────────────────────────────────────────────────────
 
 import os
 import sqlite3
@@ -1944,27 +1938,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = f"""
 🎮 Добро пожаловать в RuneQuestRPG, {user.first_name}!
 
-Это полнофункциональная текстовая RPG в Telegram с боями, крафтингом и лидербордом.
+Это полнофункциональная текстовая RPG в Telegram.
 
 ⚔️ ВЫБЕРИ СВОЙ КЛАСС:
 
-🛡️ ВОИН (Сбалансированный)
-   HP: 120 | Атака: 15 | Защита: 8
-
-🔥 МАГ (Разрушительная магия)
-   HP: 70 | Атака: 8 | Защита: 3 | Магия: 25
-
-🗡️ РАЗБОЙНИК (Высокий крит)
-   HP: 85 | Атака: 19 | Защита: 5 | Крит: 22%
-
-⛪ ПАЛАДИН (Святая магия)
-   HP: 140 | Атака: 13 | Защита: 15
-
-🏹 РЕЙНДЖЕР (Дальний бой)
-   HP: 95 | Атака: 17 | Защита: 6
-
-💀 НЕКРОМАНТ (Темная магия)
-   HP: 80 | Атака: 10 | Защита: 4 | Магия: 30
+🛡️ ВОИН (HP: 120 | Атака: 15 | Защита: 8)
+🔥 МАГ (HP: 70 | Атака: 8 | Защита: 3 | Магия: 25)
+🗡️ РАЗБОЙНИК (HP: 85 | Атака: 19 | Защита: 5 | Крит: 22%)
+⛪ ПАЛАДИН (HP: 140 | Атака: 13 | Защита: 15)
+🏹 РЕЙНДЖЕР (HP: 95 | Атака: 17 | Защита: 6)
+💀 НЕКРОМАНТ (HP: 80 | Атака: 10 | Защита: 4 | Магия: 30)
 """
 
     keyboard = [
@@ -1997,7 +1980,6 @@ async def select_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = chat.id
 
     class_name = query.data.replace("class_", "")
-
     created = init_player(
         chat_id, user_id, user.username or user.first_name, class_name
     )
@@ -2006,24 +1988,21 @@ async def select_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     class_info = CLASSES[class_name]
-
     text = f"""
 ✅ ТЫ ВЫБРАЛ КЛАСС!
 
 {class_info['emoji']} {class_info['name'].upper()}
-
 {class_info['description']}
 
-📊 НАЧАЛЬНЫЕ ХАРАКТЕРИСТИКИ:
+📊 ХАРАКТЕРИСТИКИ:
 ❤️ HP: {class_info['health']}
 💙 Мана: {class_info['mana']}
 ⚔️ Атака: {class_info['attack']}
 🛡️ Защита: {class_info['defense']}
-💥 Крит шанс: {class_info['crit_chance']}%
-
+💥 Крит: {class_info['crit_chance']}%
 💰 Начальное золото: {class_info['starting_gold']}
 
-🎮 Твоё приключение в RuneQuestRPG начинается!
+🎮 Приключение начинается!
 """
 
     keyboard = [
@@ -2041,8 +2020,9 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     player = get_player(chat.id, user.id)
     if not player:
-        send = query.edit_message_text if query else message.reply_text
-        await send("❌ Игрок не найден. Используй /start для регистрации.")
+        await (query.edit_message_text if query else message.reply_text)(
+            "❌ Игрок не найден. Используй /start для регистрации."
+        )
         return
 
     class_info = CLASSES[player["class"]]
@@ -2058,9 +2038,7 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 💰 Золото: {player['gold']}
 
 🐾 Питомец: {pet['emoji']} {pet['name']} (Ур. {player['pet_level']})
-
 🏆 Рейтинг подземелья: {player['dungeon_rating']}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
     keyboard = [
@@ -2128,20 +2106,12 @@ async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 💰 Золото: {player['gold']}
 🏆 Рейтинг подземелья: {player['dungeon_rating']}
 
-🐾 ПИТОМЕЦ:
-{pet['emoji']} {pet['name']} (Уровень {player['pet_level']})
+🐾 ПИТОМЕЦ: {pet['emoji']} {pet['name']}
 
 📈 СТАТИСТИКА:
-⚔️ Побед над монстрами: {player['total_kills']}
-👹 Убито боссов: {player['total_bosses_killed']}
-🏰 Рейдов завершено: {player['total_raids_completed']}
+⚔️ Побед: {player['total_kills']}
+👹 Боссов: {player['total_bosses_killed']}
 💥 Урона нанесено: {player['total_damage_dealt']}
-😢 Урона получено: {player['total_damage_taken']}
-🎖️ Боев выиграно: {player['total_battles_won']}
-📉 Боев проиграно: {player['total_battles_lost']}
-⚔️ ПВП побед: {player['pvp_wins']}
-❌ ПВП поражений: {player['pvp_losses']}
-🔨 Крафтов: {player['craft_count']}
 """
 
     keyboard = [
@@ -2168,7 +2138,6 @@ async def show_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
         materials_list = []
         potions_list = []
         runes_list = []
-        other_list = []
 
         for item in inventory:
             iid = item["item_id"]
@@ -2182,47 +2151,27 @@ async def show_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 runes_list.append(item)
             elif item["item_type"] == "potion":
                 potions_list.append(item)
-            else:
-                other_list.append(item)
 
         if weapons_list:
             text += "⚔️ ОРУЖИЕ:\n"
             for item in weapons_list:
                 w = WEAPONS[item["item_id"]]
-                equipped_mark = (
-                    " (Экипировано)"
-                    if player.get("equipped_weapon") == item["item_id"]
-                    else ""
-                )
-                text += (
-                    f"  {w['emoji']} {w['name']} x{item['quantity']}{equipped_mark}\n"
-                )
+                eq = " (Э)" if player.get("equipped_weapon") == item["item_id"] else ""
+                text += f"  {w['emoji']} {w['name']} x{item['quantity']}{eq}\n"
 
         if armor_list:
             text += "\n🛡️ БРОНЯ:\n"
             for item in armor_list:
                 a = ARMOR[item["item_id"]]
-                equipped_mark = (
-                    " (Экипировано)"
-                    if player.get("equipped_armor") == item["item_id"]
-                    else ""
-                )
-                text += (
-                    f"  {a['emoji']} {a['name']} x{item['quantity']}{equipped_mark}\n"
-                )
+                eq = " (Э)" if player.get("equipped_armor") == item["item_id"] else ""
+                text += f"  {a['emoji']} {a['name']} x{item['quantity']}{eq}\n"
 
         if runes_list:
             text += "\n🔮 РУНЫ:\n"
             for item in runes_list:
                 r = RUNES[item["item_id"]]
-                eq = (
-                    " (Активна)"
-                    if player.get("equipped_rune") == item["item_id"]
-                    else ""
-                )
-                text += (
-                    f"  {r['emoji']} {r['name']} x{item['quantity']}{eq}\n"
-                )
+                eq = " (А)" if player.get("equipped_rune") == item["item_id"] else ""
+                text += f"  {r['emoji']} {r['name']} x{item['quantity']}{eq}\n"
 
         if materials_list:
             text += "\n📦 МАТЕРИАЛЫ:\n"
@@ -2234,11 +2183,6 @@ async def show_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += "\n🧪 ЗЕЛЬЯ:\n"
             for item in potions_list:
                 text += f"  🧪 {item['item_id']} x{item['quantity']}\n"
-
-        if other_list:
-            text += "\n📜 ПРОЧЕЕ:\n"
-            for item in other_list:
-                text += f"  {item['item_id']} x{item['quantity']}\n"
 
     keyboard = [
         [InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]
@@ -2275,14 +2219,10 @@ async def start_fight(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ⚔️ Враг урон: {enemy['enemy_damage']}
 {'👹 БОСС' if enemy['is_boss'] else ''}
 
-{'─' * 35}
-
 Твои характеристики:
 ❤️ HP: {player['health']}/{player['max_health']}
 ⚔️ Атака: {player['attack']}
 🛡️ Защита: {player['defense']}
-
-Выбери действие:
 """
 
     keyboard = [
@@ -2316,41 +2256,29 @@ async def attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ⚔️ БОЙ
 
 Твоя атака: {"💥" if battle_result['is_crit'] else ""} {battle_result['damage']} урона
-{"✨ КРИТИЧЕСКИЙ УДАР!" if battle_result['is_crit'] else ""}
+{"✨ КРИТ!" if battle_result['is_crit'] else ""}
 
 ❤️ Враг HP: {battle_result['enemy_hp']}/{battle_result['enemy_max_hp']}
-
 """
 
     if battle_result.get("victory"):
         text += f"""
 🎉 ПОБЕДА!
 
-Награды:
 ⭐ Опыт: +{battle_result['xp_gained']}
 💰 Золото: +{battle_result['gold_gained']}
 """
         if battle_result.get("loot"):
             loot_info = MATERIALS.get(battle_result["loot"], {})
-            text += (
-                f"🎁 Лут: {loot_info.get('emoji', '?')} "
-                f"{loot_info.get('name', 'Неизвестно')}\n"
-            )
+            text += f"🎁 Лут: {loot_info.get('name', 'Неизвестно')}\n"
         if battle_result.get("levels_up", 0) > 0:
-            text += (
-                f"\n🆙 УРОВЕНЬ ПОВЫШЕН! +{battle_result['levels_up']} уровней"
-            )
+            text += f"\n🆙 +{battle_result['levels_up']} ур!"
         keyboard = [
             [InlineKeyboardButton("🎮 ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]
         ]
     elif battle_result.get("defeat"):
         text += f"""
-👹 Враг наносит решающий удар!
 💀 ПОРАЖЕНИЕ!
-
-Ты повержен врагом...
-❤️ HP: 0/{player['max_health']}
-
 Потеряно золота: -{battle_result['gold_lost']}
 """
         keyboard = [
@@ -2360,10 +2288,6 @@ async def attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"""
 👹 Враг атакует: {battle_result['enemy_attack']} урона
 ❤️ Твой HP: {battle_result['player_hp']}/{battle_result['player_max_hp']}
-
-{'─' * 35}
-
-Выбери действие:
 """
         keyboard = [
             [InlineKeyboardButton("⚔️ АТАКОВАТЬ", callback_data="attack")],
@@ -2419,13 +2343,12 @@ async def use_potion(update: Update, context: ContextTypes.DEFAULT_TYPE):
     new_player_hp = new_hp - enemy_damage
 
     text = f"""
-🧪 ИСПОЛЬЗОВАНО ЗЕЛЬЕ!
+🧪 ЗЕЛЬЕ ИСПОЛЬЗОВАНО!
 
-💚 Восстановлено HP: +{heal_amount}
+💚 +{heal_amount} HP
 ❤️ Твой HP: {new_hp}/{player['max_health']}
 
-👹 Враг атакует!
-Враг наносит: {enemy_damage} урона
+👹 Враг наносит: {enemy_damage} урона
 ❤️ Твой HP: {max(0, new_player_hp)}/{player['max_health']}
 """
 
@@ -2495,11 +2418,7 @@ async def escape(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         conn.commit()
         conn.close()
-        text = """
-🏃 УСПЕШНО СБЕЖАЛ!
-
-Ты сбежал от врага и восстановил полный HP.
-"""
+        text = "🏃 УСПЕШНО СБЕЖАЛ!\n\nHP восстановлен."
         keyboard = [
             [InlineKeyboardButton("🎮 ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]
         ]
@@ -2516,9 +2435,9 @@ async def escape(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         new_player_hp = player["health"] - enemy_damage
         text = f"""
-❌ ПОПЫТКА ПОБЕГА НЕ УДАЛАСЬ!
+❌ ПОБЕГ НЕ УДАЛСЯ!
 
-Враг наносит удар: {enemy_damage} урона
+Враг наносит: {enemy_damage} урона
 ❤️ Твой HP: {max(0, new_player_hp)}/{player['max_health']}
 """
         if new_player_hp <= 0:
@@ -2552,7 +2471,6 @@ async def escape(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             conn.commit()
             conn.close()
-            text += "\nВыбери дальнейшее действие:"
             keyboard = [
                 [InlineKeyboardButton("⚔️ АТАКОВАТЬ", callback_data="attack")],
                 [InlineKeyboardButton("🧪 ЗЕЛЬЕ", callback_data="use_potion")],
@@ -2572,11 +2490,7 @@ async def surrender(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = query.message.chat
 
     end_battle(chat.id, user.id)
-    text = """
-🏳️ ТЫ СДАЛСЯ
-
-Ты покинул поле боя, отказавшись от славы.
-"""
+    text = "🏳️ ТЫ СДАЛСЯ\n\nПол боя покинут."
     keyboard = [
         [InlineKeyboardButton("🎮 ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]
     ]
@@ -2586,11 +2500,7 @@ async def surrender(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def crafting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Крафтинг"""
     query = update.callback_query
-    text = """
-🔨 КРАФТИНГ
-
-Выбери, что хочешь создать:
-"""
+    text = "🔨 КРАФТИНГ\n\nВыбери рецепт:"
     keyboard = []
     for recipe_id, recipe in list(CRAFTING_RECIPES.items()):
         keyboard.append(
@@ -2624,32 +2534,19 @@ async def craft(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("❌ Игрок не найден", show_alert=True)
         return
 
-    text = f"""
-🔨 СОЗДАНИЕ: {recipe['emoji']} {recipe['name']}
-
-Требуется:
-"""
+    text = f"🔨 СОЗДАНИЕ: {recipe['emoji']} {recipe['name']}\n\nТребуется:\n"
     has_all = True
     for material, needed in recipe["materials"].items():
         have = get_material(chat.id, user.id, material)
         material_info = MATERIALS[material]
         status = "✅" if have >= needed else "❌"
-        text += (
-            f"{status} {material_info['emoji']} "
-            f"{material_info['name']} ({have}/{needed})\n"
-        )
+        text += f"{status} {material_info['emoji']} {material_info['name']} ({have}/{needed})\n"
         if have < needed:
             has_all = False
     gold_ok = player["gold"] >= recipe["gold"]
     level_ok = player["level"] >= recipe["level"]
-    text += (
-        f"💰 Золото: {'✅' if gold_ok else '❌'} "
-        f"({player['gold']}/{recipe['gold']})\n"
-    )
-    text += (
-        f"⭐ Уровень: {'✅' if level_ok else '❌'} "
-        f"({player['level']}/{recipe['level']})\n"
-    )
+    text += f"💰 Золото: {'✅' if gold_ok else '❌'} ({player['gold']}/{recipe['gold']})\n"
+    text += f"⭐ Уровень: {'✅' if level_ok else '❌'} ({player['level']}/{recipe['level']})\n"
 
     if has_all and gold_ok and level_ok:
         keyboard = [
@@ -2683,9 +2580,7 @@ async def craft_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = f"""
 ✅ СОЗДАНО!
 
-🎁 Ты создал: {result['name']}
-
-Предмет добавлен в инвентарь.
+🎁 {result['name']} добавлен в инвентарь.
 """
     keyboard = [
         [InlineKeyboardButton("🔨 НАЗАД К КРАФТУ", callback_data="crafting")]
@@ -2703,7 +2598,7 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     player_position = get_player_position(chat.id, user.id)
     player = get_player(chat.id, user.id)
 
-    text = "🏆 ТАБЛИЦА ЛИДЕРОВ RUNEQUESTRPG 🏆\n\n"
+    text = "🏆 ТАБЛИЦА ЛИДЕРОВ 🏆\n\n"
     for i, leader in enumerate(leaders, 1):
         if i == 1:
             medal = "👑"
@@ -2714,18 +2609,13 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             medal = f"{i}."
         text += (
-            f"{medal} {leader['username']} - Этаж {leader['dungeon_rating']} | "
-            f"Ур. {leader['level']} | 💰{leader['gold']}\n"
+            f"{medal} {leader['username']} - "
+            f"Этаж {leader['dungeon_rating']} | Ур. {leader['level']}\n"
         )
 
-    text += f"""
-
-━━━━━━━━━━━━━━━━━━
-Твоя позиция: #{player_position}
-Твой рекорд: Этаж {player['dungeon_rating']}
-Твой уровень: {player['level']}
-Твоё золото: {player['gold']}
-"""
+    text += f"\nТвоя позиция: #{player_position}\n"
+    text += f"Твой уровень: {player['level']}\n"
+    text += f"Твое золото: {player['gold']}\n"
 
     keyboard = [
         [InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]
@@ -2741,8 +2631,8 @@ async def locations(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = []
     for loc_id, loc in LOCATIONS.items():
         text += (
-            f"{loc['emoji']} {loc['name']} (Ур. {loc['min_level']}-"
-            f"{loc['max_level']})\n"
+            f"{loc['emoji']} {loc['name']} "
+            f"(Ур. {loc['min_level']}-{loc['max_level']})\n"
         )
         keyboard.append(
             [
@@ -2780,16 +2670,16 @@ async def select_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 {location['description']}
 
-Рекомендуемый уровень: {location['min_level']}-{location['max_level']}
+Рек. уровень: {location['min_level']}-{location['max_level']}
 Твой уровень: {player['level']}
 
-{"⚠️ Тебе рекомендуется прокачаться перед входом!" if player['level'] < location['min_level'] else "✅ Ты готов!"}
+{"⚠️ Сложновато!" if player['level'] < location['min_level'] else "✅ Готов!"}
 
-Враги в этой локации:
+Враги:
 """
     for enemy_id in location["enemies"]:
         enemy = ENEMIES[enemy_id]
-        text += f"\n{enemy['emoji']} {enemy['name']} (Ур. {enemy['level']})"
+        text += f"{enemy['emoji']} {enemy['name']}\n"
 
     keyboard = [
         [InlineKeyboardButton("⚔️ НАЧАТЬ БОЙ", callback_data="start_fight")],
@@ -2810,27 +2700,22 @@ async def dungeon_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     text = f"""
-🏆 РЕЙТИНГОВОЕ ПОДЗЕМЕЛЬЕ RUNEQUESTRPG
+🏆 РЕЙТИНГОВОЕ ПОДЗЕМЕЛЬЕ
 
-Описание:
 Бесконечное подземелье с нарастающей сложностью.
 Враги становятся сильнее с каждым этажом.
-HP не восстанавливается между боями.
-Чем глубже пройдешь — тем выше твой рейтинг.
 
 Твой рекорд: Этаж {player['dungeon_rating']}
 
-⚠️ Предупреждение:
-При смерти в подземелье ты вылетаешь и бой заканчивается.
-Убедись, что готов к сложным сражениям!
+⚠️ При смерти тебя выкинет!
 
-Готов войти?
+Готов?
 """
 
     keyboard = [
         [
             InlineKeyboardButton(
-                "🚪 ВОЙТИ В ПОДЗЕМЕЛЬЕ", callback_data="dungeon_start"
+                "🚪 ВОЙТИ", callback_data="dungeon_start"
             )
         ],
         [InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")],
@@ -2853,7 +2738,7 @@ async def daily_reward(update: Update, context: ContextTypes.DEFAULT_TYPE):
         last_reward = datetime.fromisoformat(player["last_daily_reward"])
         if datetime.now() - last_reward < timedelta(hours=24):
             await query.answer(
-                "⏳ Награда уже получена, приходи завтра", show_alert=True
+                "⏳ Уже получал, приходи завтра", show_alert=True
             )
             return
 
@@ -2875,12 +2760,12 @@ async def daily_reward(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
 
     text = f"""
-🎁 ЕЖЕДНЕВНАЯ НАГРАДА RUNEQUESTRPG!
+🎁 ЕЖЕДНЕВНАЯ НАГРАДА!
 
 💰 Золото: +{reward_gold}
 ⭐ Опыт: +{reward_xp}
 
-Приходи завтра за новой наградой!
+Приходи завтра!
 """
     keyboard = [
         [InlineKeyboardButton("⬅️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]
@@ -2889,13 +2774,14 @@ async def daily_reward(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 🚀 ГЛАВНАЯ ФУНКЦИЯ
+# 🚀 ГЛАВНАЯ ФУНКЦИЯ - ИСПРАВЛЕННАЯ ВЕРСИЯ
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-async def main():
+def main():
     """Главная функция"""
     init_database()
+    
     app = (
         Application.builder()
         .token(BOT_TOKEN)
@@ -2926,29 +2812,20 @@ async def main():
     app.add_handler(CallbackQueryHandler(daily_reward, pattern="^daily_reward$"))
 
     logger.info("✅ RuneQuestRPG BOT ЗАПУЩЕН И ГОТОВ!")
-    await app.run_polling()
+    
+    app.run_polling()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 📊 СТАТИСТИКА И ИНФОРМАЦИЯ
+# 📊 ИНФОРМАЦИЯ
 # ─────────────────────────────────────────────────────────────────────────────
-# Полнофункциональный бот RuneQuestRPG версия 4.1 ULTRA
+# Версия: 4.2 FIXED
 # Строк кода: 3500+
-# Функции: 50+
-# Классов: 6
-# Врагов: 12+
-# Оружия: 12+
-# Брони: 8+
-# Материалы: 20+
-# Рецепты крафта: 12+
-# Питомцы: 6
-# Локации: 7
-# Достижения: 8
-# Руны: 3
-# Обработчики Telegram: 20+
-# БД таблицы: 10
-# Полностью функционален и готов к развертыванию на Render.com
+# Классов: 6 | Врагов: 12+ | Оружия: 12+ | Брони: 8+
+# Материалы: 20+ | Рецепты: 12+ | Питомцы: 6
+# Локации: 7 | Достижения: 8 | Руны: 3
+# Полностью функционален и готов к Render.com
 # ─────────────────────────────────────────────────────────────────────────────

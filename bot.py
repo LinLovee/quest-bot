@@ -1937,12 +1937,11 @@ async def attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = f"""
 ⚔️ БОЙ
 
-Твоя атака: {(\"💥\" if battle_result['is_crit'] else \"\")} {battle_result['damage']} урона
-
-{(\"✨ КРИТ!\" if battle_result['is_crit'] else \"\")}
+Твоя атака: {'💥 ' if battle_result['is_crit'] else ''}{battle_result['damage']} урона
 
 ❤️ Враг HP: {battle_result['enemy_hp']}/{battle_result['enemy_max_hp']}
     """
+
 
     if battle_result.get("victory"):
         text += f"""

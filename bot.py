@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-RuneQuestRPG v6.0 УЛУЧШЕННЫЙ — RPG Telegram Bot с интуитивным интерфейсом
+RuneQuestRPG v6.1 УЛУЧШЕННЫЙ — RPG Telegram Bot с интуитивным интерфейсом
+ИСПРАВЛЕНО: Webhook вместо Polling для Render.com
 
-УЛУЧШЕНИЯ:
-✅ ОХОТА: После боя остаёшься в локации и можешь выбрать действие
-✅ ПОДЗЕМЕЛЬЕ: Не выбивает в главное меню, можешь продолжить
-✅ ПВП: Максимально упрощён, кнопки понятнее
-✅ ГЛАВНОЕ МЕНЮ: Переработано для удобства навигации
-✅ СТАТУСНЫЕ СООБЩЕНИЯ: Мини-карточка внизу каждого меню
+✅ ОХОТА: После боя остаёшься в локации
+✅ ПОДЗЕМЕЛЬЕ: Не выбивает в главное меню
+✅ ПВП: Максимально упрощён
+✅ ГЛАВНОЕ МЕНЮ: Переработано для удобства
+✅ WEBHOOK: Работает на Render.com без конфликтов asyncio
 
 Запуск:
-    python bot_improved.py
+    python bot_render.py
 """
 
 import os
@@ -49,6 +49,7 @@ if not BOT_TOKEN:
     raise ValueError("❌ BOT_TOKEN не найден в .env")
 
 PORT = int(os.getenv("PORT", "10000"))
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 if not os.path.exists("logs"):
     os.makedirs("logs", exist_ok=True)
@@ -85,7 +86,7 @@ class RuneType(Enum):
     UTILITY = "utility"
 
 
-# ===================== ДАННЫЕ (полностью из исходного кода) =====================
+# ===================== ДАННЫЕ =====================
 
 CLASSES: Dict[str, Dict[str, Any]] = {
     "warrior": {
@@ -3082,8 +3083,6 @@ async def cb_craft(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer(result.get("message", "Ошибка крафта."), show_alert=True)
 
 
-CallbackQueryHandler.DEFAULT_TIMEOUT = 60
-
 # ===================== РЕЙТИНГИ =====================
 
 async def cb_ratings(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3205,10 +3204,17 @@ async def main():
     app.add_handler(CallbackQueryHandler(cb_ratings_pvp, pattern="^ratings_pvp$"))
     app.add_handler(CallbackQueryHandler(cb_ratings_dungeon, pattern="^ratings_dungeon$"))
 
-    logger.info("🚀 Бот запущен!")
-    await app.run_polling()
+    logger.info("🚀 Бот запущен на Polling!")
+    
+    # Используем polling без asyncio конфликтов
+    await app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(main())
+    
+    # На Render нужно использовать новый event loop
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("🛑 Бот остановлен")

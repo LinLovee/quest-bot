@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-RuneQuestRPG v5.3 COMPLETE — RPG Telegram Bot с полным функционалом
+RuneQuestRPG v6.0 УЛУЧШЕННЫЙ — RPG Telegram Bot с интуитивным интерфейсом
 
 УЛУЧШЕНИЯ:
-- ✅ ПВП ПЕРЕДЕЛАНО НА ГЛОБАЛЬНЫЙ ПОИСК (игроки в ЛС, не в чате)
-- ✅ ПОДЗЕМЕЛЬЯ ПОЛНОСТЬЮ РАБОТАЮТ (этажи, масштабирование врагов, рейтинги)
-- ✅ FASTAPI + PORT BINDING для Web Service на Render.com
-- ✅ ВЕС ФУНКЦИОНАЛ СТАРОГО БОТА ВОССТАНОВЛЕН (shop, crafting, equipment, pets, runes)
+✅ ОХОТА: После боя остаёшься в локации и можешь выбрать действие
+✅ ПОДЗЕМЕЛЬЕ: Не выбивает в главное меню, можешь продолжить
+✅ ПВП: Максимально упрощён, кнопки понятнее
+✅ ГЛАВНОЕ МЕНЮ: Переработано для удобства навигации
+✅ СТАТУСНЫЕ СООБЩЕНИЯ: Мини-карточка внизу каждого меню
 
 Запуск:
-    python bot.py
+    python bot_improved.py
 """
 
 import os
@@ -68,7 +69,6 @@ STATS_PER_LEVEL = {"health": 20, "mana": 15, "attack": 5, "defense": 2}
 
 # ===================== ENUM И КЛАССЫ =====================
 
-
 class Element(Enum):
     PHYSICAL = "physical"
     FIRE = "fire"
@@ -85,7 +85,7 @@ class RuneType(Enum):
     UTILITY = "utility"
 
 
-# ===================== ДАННЫЕ =====================
+# ===================== ДАННЫЕ (полностью из исходного кода) =====================
 
 CLASSES: Dict[str, Dict[str, Any]] = {
     "warrior": {
@@ -662,7 +662,6 @@ LOCATIONS: Dict[str, Dict[str, Any]] = {
 
 # ===================== БД =====================
 
-
 def get_db() -> sqlite3.Connection:
     conn = sqlite3.connect("runequestrpg.db", timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -678,7 +677,6 @@ def safedb_execute(func: Callable) -> Callable:
         except Exception as e:
             logger.error(f"DB error in {func.__name__}: {e}")
             return None
-
     return wrapper
 
 
@@ -812,7 +810,6 @@ def init_database():
 
 
 # ===================== ИГРОКИ =====================
-
 
 @safedb_execute
 def init_player(chat_id: int, user_id: int, username: str, player_class: str) -> bool:
@@ -977,7 +974,6 @@ def subtract_gold(chat_id: int, user_id: int, amount: int) -> bool:
 
 
 # ===================== ИНВЕНТАРЬ =====================
-
 
 @safedb_execute
 def get_inventory(chat_id: int, user_id: int) -> List[Dict[str, Any]]:
@@ -1195,7 +1191,6 @@ def buy_pet(chat_id: int, user_id: int, pet_id: str) -> bool:
 
 
 # ===================== БОИ =====================
-
 
 def calculate_damage(
     attacker_attack: int,
@@ -1478,7 +1473,6 @@ def perform_attack(chat_id: int, user_id: int, username: str) -> Dict[str, Any]:
 
 # ===================== ПОДЗЕМЕЛЬЯ =====================
 
-
 @safedb_execute
 def start_dungeon(chat_id: int, user_id: int) -> Optional[Dict[str, Any]]:
     conn = get_db()
@@ -1617,7 +1611,6 @@ def end_dungeon_logic(chat_id: int, user_id: int, victory: bool):
 
 
 # ===================== ПВП (ГЛОБАЛЬНОЕ) =====================
-
 
 @safedb_execute
 def add_pvp_queue(chat_id: int, user_id: int):
@@ -1799,7 +1792,6 @@ def pvp_battle(
 
 # ===================== КРАФТИНГ =====================
 
-
 @safedb_execute
 def craft_item(chat_id: int, user_id: int, recipe_id: str) -> Dict[str, Any]:
     player = get_player(chat_id, user_id)
@@ -1849,7 +1841,6 @@ def craft_item(chat_id: int, user_id: int, recipe_id: str) -> Dict[str, Any]:
 
 
 # ===================== РЕЙТИНГИ =====================
-
 
 @safedb_execute
 def get_global_leaderboard(chat_id: int, limit: int = 10) -> List[Dict[str, Any]]:
@@ -1933,8 +1924,21 @@ def get_player_position(chat_id: int, user_id: int) -> int:
     return int(row["pos"]) + 1 if row else 1
 
 
-# ===================== TELEGRAM ОБРАБОТЧИКИ =====================
+def build_player_card(player: Dict[str, Any]) -> str:
+    """Быстрая карточка игрока для вывода внизу каждого меню"""
+    info = CLASSES[player["class"]]
+    pet = PETS.get(player["pet_id"], PETS["wolf"])
+    hp_bar = "█" * (player["health"] // 10) + "░" * ((player["max_health"] - player["health"]) // 10)
+    
+    return (
+        f"━━━━━━━━━━━━━━━━\n"
+        f"{info['emoji']} Ур. {player['level']} | 💰 {player['gold']}\n"
+        f"❤️ {hp_bar}\n"
+        f"🐾 {pet['emoji']} {pet['name']}"
+    )
 
+
+# ===================== TELEGRAM ОБРАБОТЧИКИ =====================
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -1945,14 +1949,14 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     text = (
-        f"Добро пожаловать в RuneQuestRPG, {user.first_name}!\n\n"
-        "Выбери класс:\n"
-        "🗡️ Воин — баланс атаки и защиты\n"
-        "🪄 Маг — слаб телом, силён магией\n"
-        "🗡️ Разбойник — криты и уклонение\n"
-        "✨ Паладин — танк со светлой магией\n"
-        "🏹 Рейнджер — дальний бой\n"
-        "💀 Некромант — магия смерти\n"
+        f"🎮 Добро пожаловать в RuneQuestRPG, {user.first_name}!\n\n"
+        "Выбери класс персонажа:\n\n"
+        "🗡️ **Воин** — баланс атаки и защиты\n"
+        "🪄 **Маг** — слаб телом, силён магией\n"
+        "🗡️ **Разбойник** — криты и уклонение\n"
+        "✨ **Паладин** — танк со светлой магией\n"
+        "🏹 **Рейнджер** — дальний бой\n"
+        "💀 **Некромант** — магия смерти\n"
     )
     keyboard = [
         [
@@ -1986,18 +1990,17 @@ async def cb_select_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         f"✅ Класс выбран: {info['emoji']} {info['name']}\n\n"
         f"{info['description']}\n\n"
-        f"❤️ HP: {info['health']}\n"
-        f"💎 Мана: {info['mana']}\n"
-        f"⚔️ Атака: {info['attack']}\n"
-        f"🛡️ Защита: {info['defense']}\n"
+        f"❤️ HP: {info['health']} | 💎 Мана: {info['mana']}\n"
+        f"⚔️ Атака: {info['attack']} | 🛡️ Защита: {info['defense']}\n"
         f"💰 Золото: {info['starting_gold']}\n\n"
-        "Персонаж создан! Переходим в главное меню."
+        "Персонаж создан! ➡️"
     )
-    keyboard = [[InlineKeyboardButton("➡️ ГЛАВНОЕ МЕНЮ", callback_data="main_menu")]]
+    keyboard = [[InlineKeyboardButton("📋 Главное меню", callback_data="main_menu")]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """ПЕРЕРАБОТАННОЕ ГЛАВНОЕ МЕНЮ"""
     query = update.callback_query if update.callback_query else None
     message = query.message if query else update.message
     user = update.effective_user
@@ -2005,7 +2008,7 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     player = get_player(chat.id, user.id)
     if not player:
-        text = "Сначала создай персонажа: /start"
+        text = "❌ Сначала создай персонажа: /start"
         if query:
             await query.edit_message_text(text)
         else:
@@ -2013,18 +2016,17 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     info = CLASSES[player["class"]]
-    pet = PETS.get(player["pet_id"], PETS["wolf"])
-
+    pos = get_player_position(chat.id, user.id)
+    
     text = (
-        f"{info['emoji']} RuneQuestRPG — {user.first_name}\n\n"
-        f"Класс: {info['name']} (ур. {player['level']}/{MAX_LEVEL})\n"
-        f"XP: {player['xp']}\n"
-        f"❤️ HP: {player['health']}/{player['max_health']}\n"
-        f"💎 Мана: {player['mana']}/{player['max_mana']}\n"
-        f"💰 Золото: {player['gold']}\n\n"
-        f"🐾 Питомец: {pet['emoji']} {pet['name']} (ур. {player['pet_level']})\n"
-        f"🏰 Рейтинг подземелья: {player['dungeon_rating']}\n"
+        f"🎮 RuneQuestRPG\n\n"
+        f"{info['emoji']} {info['name']} Ур.{player['level']}\n"
+        f"📊 Позиция: #{pos}\n"
+        f"💰 Золото: {player['gold']} | XP: {player['xp']}\n\n"
+        "Выбери действие ⬇️"
     )
+    text += "\n\n" + build_player_card(player)
+    
     keyboard = [
         [
             InlineKeyboardButton("👤 Профиль", callback_data="profile"),
@@ -2039,7 +2041,7 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("🏰 Подземелье", callback_data="dungeon"),
         ],
         [
-            InlineKeyboardButton("⚔️ ПВП", callback_data="pvp_menu"),
+            InlineKeyboardButton("🤺 ПВП", callback_data="pvp_menu"),
             InlineKeyboardButton("🏆 Рейтинги", callback_data="ratings"),
         ],
     ]
@@ -2048,7 +2050,7 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
         except Exception:
-            await query.answer("Главное меню", show_alert=False)
+            await query.answer()
     else:
         await message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
@@ -2066,23 +2068,24 @@ async def cb_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     info = CLASSES[player["class"]]
     pet = PETS.get(player["pet_id"], PETS["wolf"])
     stats = get_player_battle_stats(player)
+    pos = get_player_position(chat.id, user.id)
 
     text = (
         f"👤 Профиль: {user.first_name}\n\n"
-        f"{info['emoji']} Класс: {info['name']} (ур. {player['level']}/{MAX_LEVEL})\n"
-        f"XP: {player['xp']}\n"
-        f"❤️ HP: {player['health']}/{player['max_health']}\n"
-        f"💎 Мана: {player['mana']}/{player['max_mana']}\n"
-        f"⚔️ Атака: {stats['attack']} (базовая {player['attack']})\n"
-        f"🛡️ Защита: {stats['defense']} (базовая {player['defense']})\n"
-        f"💥 Крит: {stats['crit_chance']}%\n"
-        f"💰 Золото: {player['gold']}\n\n"
-        f"🐾 Питомец: {pet['emoji']} {pet['name']} (ур. {player['pet_level']})\n\n"
-        f"⚔️ Победы: {player['total_battles_won']} | Поражения: {player['total_battles_lost']}\n"
-        f"💀 Боссы: {player['total_bosses_killed']}\n"
-        f"⚔️ ПВП W/L: {player['pvp_wins']}/{player['pvp_losses']}\n"
-        f"🏰 Рейтинг подземелий: {player['dungeon_rating']}\n"
+        f"{info['emoji']} Класс: {info['name']} (Ур. {player['level']}/{MAX_LEVEL})\n"
+        f"📊 Позиция: #{pos}\n\n"
+        f"⚔️ Боевые статы:\n"
+        f"  ⚔️ Атака: {stats['attack']} | 🛡️ Защита: {stats['defense']}\n"
+        f"  💥 Крит: {stats['crit_chance']}%\n\n"
+        f"📈 Статистика:\n"
+        f"  Побед: {player['total_battles_won']} | Поражений: {player['total_battles_lost']}\n"
+        f"  Боссов убито: {player['total_bosses_killed']}\n"
+        f"  ПВП: {player['pvp_wins']}W / {player['pvp_losses']}L\n\n"
+        f"🐾 Питомец: {pet['emoji']} {pet['name']} Ур.{player['pet_level']}\n"
+        f"🏰 Рейтинг подземелий: {player['dungeon_rating']}"
     )
+    text += "\n\n" + build_player_card(player)
+    
     keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
@@ -2093,6 +2096,8 @@ async def cb_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = query.message.chat
 
     items = get_inventory(chat.id, user.id)
+    player = get_player(chat.id, user.id)
+    
     if not items:
         text = "🎒 Инвентарь пуст."
     else:
@@ -2102,25 +2107,26 @@ async def cb_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
             qty = it["quantity"]
             if iid in WEAPONS:
                 w = WEAPONS[iid]
-                lines.append(f"{w['emoji']} {w['name']} x{qty}")
+                emoji = "✅" if iid == player["equipped_weapon"] else "  "
+                lines.append(f"{emoji} {w['emoji']} {w['name']} x{qty}")
             elif iid in ARMOR:
                 a = ARMOR[iid]
-                lines.append(f"{a['emoji']} {a['name']} x{qty}")
+                emoji = "✅" if iid == player["equipped_armor"] else "  "
+                lines.append(f"{emoji} {a['emoji']} {a['name']} x{qty}")
             elif iid in MATERIALS:
                 m = MATERIALS[iid]
-                lines.append(f"{m['emoji']} {m['name']} x{qty}")
+                lines.append(f"  {m['emoji']} {m['name']} x{qty}")
             elif iid in PETS:
                 p = PETS[iid]
-                lines.append(f"{p['emoji']} {p['name']} x{qty}")
+                lines.append(f"  {p['emoji']} {p['name']} x{qty}")
             elif iid in RUNES:
                 r = RUNES[iid]
-                lines.append(f"{r['emoji']} {r['name']} x{qty}")
+                lines.append(f"  {r['emoji']} {r['name']} x{qty}")
             elif iid == "health_potion":
-                lines.append(f"🧪 Зелье лечения x{qty}")
-            else:
-                lines.append(f"{iid} x{qty}")
+                lines.append(f"  🧪 Зелье лечения x{qty}")
         text = "\n".join(lines)
 
+    text += "\n\n" + build_player_card(player)
     keyboard = [
         [InlineKeyboardButton("🛠️ Экипировка", callback_data="equipment")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")],
@@ -2144,39 +2150,24 @@ async def cb_show_equipment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if player["equipped_weapon"]:
         weapon = WEAPONS.get(player["equipped_weapon"])
         if weapon:
-            text += f"Оружие: {weapon['emoji']} {weapon['name']} (атака +{weapon['attack']})\n"
+            text += f"⚔️ Оружие: {weapon['emoji']} {weapon['name']} (+{weapon['attack']} атак)\n"
     else:
-        text += "Оружие: не экипировано\n"
+        text += "⚔️ Оружие: не экипировано\n"
 
     if player["equipped_armor"]:
         armor = ARMOR.get(player["equipped_armor"])
         if armor:
-            text += (
-                f"Броня: {armor['emoji']} {armor['name']} "
-                f"(защита +{armor['defense']}, HP +{armor['health']})\n"
-            )
+            text += f"🛡️ Броня: {armor['emoji']} {armor['name']} (+{armor['defense']} защ)\n"
     else:
-        text += "Броня: не экипирована\n"
+        text += "🛡️ Броня: не экипирована\n"
+
+    text += "\n\n" + build_player_card(player)
 
     keyboard: List[List[InlineKeyboardButton]] = []
     if weapons_in_inv:
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    "🔧 Смена оружия",
-                    callback_data="select_weapon",
-                )
-            ]
-        )
+        keyboard.append([InlineKeyboardButton("🔧 Смена оружия", callback_data="select_weapon")])
     if armor_in_inv:
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    "🔧 Смена брони",
-                    callback_data="select_armor",
-                )
-            ]
-        )
+        keyboard.append([InlineKeyboardButton("🔧 Смена брони", callback_data="select_armor")])
 
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="inventory")])
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
@@ -2189,27 +2180,30 @@ async def cb_select_weapon_to_equip(update: Update, context: ContextTypes.DEFAUL
 
     inventory = get_inventory(chat.id, user.id)
     weapons = [it for it in inventory if it["item_id"] in WEAPONS]
+    player = get_player(chat.id, user.id)
 
     if not weapons:
         await query.answer("Нет оружия в инвентаре.", show_alert=True)
         return
 
-    text = "Выбери оружие:\n"
+    text = "⚔️ Выбери оружие:\n\n"
     keyboard: List[List[InlineKeyboardButton]] = []
 
     for weapon_inv in weapons:
         wid = weapon_inv["item_id"]
         weapon = WEAPONS[wid]
-        text += f"{weapon['emoji']} {weapon['name']} (атака +{weapon['attack']})\n"
+        emoji = "✅" if wid == player["equipped_weapon"] else "  "
+        text += f"{emoji} {weapon['emoji']} {weapon['name']} (+{weapon['attack']})\n"
         keyboard.append(
             [
                 InlineKeyboardButton(
-                    f"✅ {weapon['emoji']} {weapon['name']}",
+                    f"✓ {weapon['emoji']} {weapon['name']}",
                     callback_data=f"equip_weapon_{wid}",
                 )
             ]
         )
 
+    text += "\n\n" + build_player_card(player)
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="equipment")])
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
@@ -2222,13 +2216,10 @@ async def cb_equip_weapon_handler(update: Update, context: ContextTypes.DEFAULT_
     weapon_id = query.data.replace("equip_weapon_", "")
     if equip_weapon(chat.id, user.id, weapon_id):
         weapon = WEAPONS[weapon_id]
-        await query.answer(
-            f"✅ Экипирован: {weapon['emoji']} {weapon['name']}",
-            show_alert=False,
-        )
+        await query.answer(f"✅ Экипирован: {weapon['emoji']} {weapon['name']}", show_alert=False)
         await cb_show_equipment(update, context)
     else:
-        await query.answer("Не удалось экипировать оружие.", show_alert=True)
+        await query.answer("❌ Не удалось экипировать оружие.", show_alert=True)
 
 
 async def cb_select_armor_to_equip(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2238,30 +2229,30 @@ async def cb_select_armor_to_equip(update: Update, context: ContextTypes.DEFAULT
 
     inventory = get_inventory(chat.id, user.id)
     armor_list = [it for it in inventory if it["item_id"] in ARMOR]
+    player = get_player(chat.id, user.id)
 
     if not armor_list:
         await query.answer("Нет брони в инвентаре.", show_alert=True)
         return
 
-    text = "Выбери броню:\n"
+    text = "🛡️ Выбери броню:\n\n"
     keyboard: List[List[InlineKeyboardButton]] = []
 
     for armor_inv in armor_list:
         aid = armor_inv["item_id"]
         armor = ARMOR[aid]
-        text += (
-            f"{armor['emoji']} {armor['name']} "
-            f"(защита +{armor['defense']}, HP +{armor['health']})\n"
-        )
+        emoji = "✅" if aid == player["equipped_armor"] else "  "
+        text += f"{emoji} {armor['emoji']} {armor['name']} (+{armor['defense']})\n"
         keyboard.append(
             [
                 InlineKeyboardButton(
-                    f"✅ {armor['emoji']} {armor['name']}",
+                    f"✓ {armor['emoji']} {armor['name']}",
                     callback_data=f"equip_armor_{aid}",
                 )
             ]
         )
 
+    text += "\n\n" + build_player_card(player)
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="equipment")])
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
@@ -2274,17 +2265,13 @@ async def cb_equip_armor_handler(update: Update, context: ContextTypes.DEFAULT_T
     armor_id = query.data.replace("equip_armor_", "")
     if equip_armor(chat.id, user.id, armor_id):
         armor = ARMOR[armor_id]
-        await query.answer(
-            f"✅ Экипирована: {armor['emoji']} {armor['name']}",
-            show_alert=False,
-        )
+        await query.answer(f"✅ Экипирована: {armor['emoji']} {armor['name']}", show_alert=False)
         await cb_show_equipment(update, context)
     else:
-        await query.answer("Не удалось экипировать броню.", show_alert=True)
+        await query.answer("❌ Не удалось экипировать броню.", show_alert=True)
 
 
 # ===================== МАГАЗИН =====================
-
 
 async def cb_show_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2293,12 +2280,22 @@ async def cb_show_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     player = get_player(chat.id, user.id)
 
-    text = f"{CLASSES[player['class']]['emoji']} МАГАЗИН\n\n"
+    text = (
+        f"🏪 МАГАЗИН\n\n"
+        f"Выбери категорию товаров ⬇️\n\n"
+        f"Золото: {player['gold']} 💰"
+    )
+    text += "\n\n" + build_player_card(player)
+    
     keyboard = [
-        [InlineKeyboardButton("🗡️ Оружие", callback_data="shop_weapons")],
-        [InlineKeyboardButton("🛡️ Броня", callback_data="shop_armor")],
-        [InlineKeyboardButton("🐾 Питомцы", callback_data="shop_pets")],
-        [InlineKeyboardButton("⚡ Руны", callback_data="shop_runes")],
+        [
+            InlineKeyboardButton("⚔️ Оружие", callback_data="shop_weapons"),
+            InlineKeyboardButton("🛡️ Броня", callback_data="shop_armor"),
+        ],
+        [
+            InlineKeyboardButton("🐾 Питомцы", callback_data="shop_pets"),
+            InlineKeyboardButton("⚡ Руны", callback_data="shop_runes"),
+        ],
         [InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")],
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
@@ -2311,23 +2308,17 @@ async def cb_show_weapons_shop(update: Update, context: ContextTypes.DEFAULT_TYP
 
     player = get_player(chat.id, user.id)
 
-    text = f"{CLASSES[player['class']]['emoji']} МАГАЗИН - ОРУЖИЕ\n\n"
+    text = f"⚔️ ОРУЖИЕ (Золото: {player['gold']} 💰)\n\n"
     keyboard: List[List[InlineKeyboardButton]] = []
 
     for weapon_id, weapon_info in WEAPONS.items():
-        if (
-            weapon_info.get("class")
-            and weapon_info["class"] != player["class"]
-        ):
+        if weapon_info.get("class") and weapon_info["class"] != player["class"]:
             continue
 
         can_afford = player["gold"] >= weapon_info["price"]
         status = "✅" if can_afford else "❌"
 
-        text += (
-            f"{status} {weapon_info['emoji']} {weapon_info['name']} "
-            f"- атака +{weapon_info['attack']} - {weapon_info['price']}💰\n"
-        )
+        text += f"{status} {weapon_info['emoji']} {weapon_info['name']} — {weapon_info['price']}💰\n"
         keyboard.append(
             [
                 InlineKeyboardButton(
@@ -2337,6 +2328,7 @@ async def cb_show_weapons_shop(update: Update, context: ContextTypes.DEFAULT_TYP
             ]
         )
 
+    text += "\n\n" + build_player_card(player)
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="shop")])
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
@@ -2348,23 +2340,17 @@ async def cb_show_armor_shop(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     player = get_player(chat.id, user.id)
 
-    text = f"{CLASSES[player['class']]['emoji']} МАГАЗИН - БРОНЯ\n\n"
+    text = f"🛡️ БРОНЯ (Золото: {player['gold']} 💰)\n\n"
     keyboard: List[List[InlineKeyboardButton]] = []
 
     for armor_id, armor_info in ARMOR.items():
-        if (
-            armor_info.get("class")
-            and armor_info["class"] != player["class"]
-        ):
+        if armor_info.get("class") and armor_info["class"] != player["class"]:
             continue
 
         can_afford = player["gold"] >= armor_info["price"]
         status = "✅" if can_afford else "❌"
 
-        text += (
-            f"{status} {armor_info['emoji']} {armor_info['name']} "
-            f"- защита +{armor_info['defense']}, HP +{armor_info['health']} - {armor_info['price']}💰\n"
-        )
+        text += f"{status} {armor_info['emoji']} {armor_info['name']} — {armor_info['price']}💰\n"
         keyboard.append(
             [
                 InlineKeyboardButton(
@@ -2374,6 +2360,7 @@ async def cb_show_armor_shop(update: Update, context: ContextTypes.DEFAULT_TYPE)
             ]
         )
 
+    text += "\n\n" + build_player_card(player)
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="shop")])
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
@@ -2385,7 +2372,7 @@ async def cb_show_pets_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     player = get_player(chat.id, user.id)
 
-    text = f"{CLASSES[player['class']]['emoji']} МАГАЗИН - ПИТОМЦЫ\n\n"
+    text = f"🐾 ПИТОМЦЫ (Золото: {player['gold']} 💰)\n\n"
     keyboard: List[List[InlineKeyboardButton]] = []
 
     for pet_id, pet_info in PETS.items():
@@ -2394,7 +2381,7 @@ async def cb_show_pets_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         text += (
             f"{status} {pet_info['emoji']} {pet_info['name']} "
-            f"- атака +{pet_info['attack_bonus']}, защита +{pet_info['defense_bonus']} - {pet_info['price']}💰\n"
+            f"(+{pet_info['attack_bonus']} атак) — {pet_info['price']}💰\n"
         )
         keyboard.append(
             [
@@ -2405,6 +2392,7 @@ async def cb_show_pets_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
         )
 
+    text += "\n\n" + build_player_card(player)
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="shop")])
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
@@ -2416,16 +2404,14 @@ async def cb_show_runes_shop(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     player = get_player(chat.id, user.id)
 
-    text = f"{CLASSES[player['class']]['emoji']} МАГАЗИН - РУНЫ\n\n"
+    text = f"⚡ РУНЫ (Золото: {player['gold']} 💰)\n\n"
     keyboard: List[List[InlineKeyboardButton]] = []
 
     for rune_id, rune_info in RUNES.items():
         can_afford = player["gold"] >= rune_info["price"]
         status = "✅" if can_afford else "❌"
 
-        text += (
-            f"{status} {rune_info['emoji']} {rune_info['name']} ({rune_info['type']}) - {rune_info['price']}💰\n"
-        )
+        text += f"{status} {rune_info['emoji']} {rune_info['name']} — {rune_info['price']}💰\n"
         keyboard.append(
             [
                 InlineKeyboardButton(
@@ -2435,6 +2421,7 @@ async def cb_show_runes_shop(update: Update, context: ContextTypes.DEFAULT_TYPE)
             ]
         )
 
+    text += "\n\n" + build_player_card(player)
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="shop")])
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
@@ -2451,15 +2438,12 @@ async def cb_buy_weapon(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     player = get_player(chat.id, user.id)
     if not can_use_item(player["class"], weapon_id):
-        await query.answer("Не для твоего класса!", show_alert=True)
+        await query.answer("❌ Не для твоего класса!", show_alert=True)
         return
 
     if buy_item(chat.id, user.id, weapon_id):
         weapon = WEAPONS[weapon_id]
-        await query.answer(
-            f"✅ Куплено: {weapon['emoji']} {weapon['name']}",
-            show_alert=True,
-        )
+        await query.answer(f"✅ Куплено: {weapon['emoji']} {weapon['name']}", show_alert=True)
         await cb_show_weapons_shop(update, context)
     else:
         await query.answer("❌ Не хватает золота или уже есть.", show_alert=True)
@@ -2477,15 +2461,12 @@ async def cb_buy_armor(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     player = get_player(chat.id, user.id)
     if not can_use_item(player["class"], armor_id):
-        await query.answer("Не для твоего класса!", show_alert=True)
+        await query.answer("❌ Не для твоего класса!", show_alert=True)
         return
 
     if buy_item(chat.id, user.id, armor_id):
         armor = ARMOR[armor_id]
-        await query.answer(
-            f"✅ Куплено: {armor['emoji']} {armor['name']}",
-            show_alert=True,
-        )
+        await query.answer(f"✅ Куплено: {armor['emoji']} {armor['name']}", show_alert=True)
         await cb_show_armor_shop(update, context)
     else:
         await query.answer("❌ Не хватает золота или уже есть.", show_alert=True)
@@ -2503,10 +2484,7 @@ async def cb_buy_pet(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if buy_pet(chat.id, user.id, pet_id):
         pet = PETS[pet_id]
-        await query.answer(
-            f"✅ Куплено: {pet['emoji']} {pet['name']}",
-            show_alert=True,
-        )
+        await query.answer(f"✅ Куплено: {pet['emoji']} {pet['name']}", show_alert=True)
         await cb_show_pets_shop(update, context)
     else:
         await query.answer("❌ Не хватает золота.", show_alert=True)
@@ -2524,19 +2502,16 @@ async def cb_buy_rune(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if buy_item(chat.id, user.id, rune_id):
         rune = RUNES[rune_id]
-        await query.answer(
-            f"✅ Куплено: {rune['emoji']} {rune['name']}",
-            show_alert=True,
-        )
+        await query.answer(f"✅ Куплено: {rune['emoji']} {rune['name']}", show_alert=True)
         await cb_show_runes_shop(update, context)
     else:
         await query.answer("❌ Не хватает золота.", show_alert=True)
 
 
-# ===================== ЛОКАЦИИ И БОИ =====================
-
+# ===================== ОХОТА - УЛУЧШЕННАЯ =====================
 
 async def cb_show_locations(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Не выходит из экрана локаций"""
     query = update.callback_query
     user = query.from_user
     chat = query.message.chat
@@ -2546,36 +2521,38 @@ async def cb_show_locations(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("Сначала создай персонажа.", show_alert=True)
         return
 
-    lines = ["🌍 Локации:\n"]
+    lines = ["🌍 ВЫБЕРИ ЛОКАЦИЮ:\n"]
     keyboard: List[List[InlineKeyboardButton]] = []
     for loc_id, loc in LOCATIONS.items():
         if player["level"] < loc["min_level"]:
             status = "🔒"
-        elif player["level"] > loc["max_level"]:
+        elif player["level"] > loc["max_level"] + 10:
             status = "⚠️"
         else:
             status = "✅"
         lines.append(
-            f"{status} {loc['emoji']} {loc['name']} "
-            f"(ур. {loc['min_level']}-{loc['max_level']})"
+            f"{status} {loc['emoji']} {loc['name']} (ур. {loc['min_level']}-{loc['max_level']})"
         )
         if status != "🔒":
             keyboard.append(
                 [
                     InlineKeyboardButton(
-                        f"{loc['emoji']} {loc['name']}",
+                        f"{status} {loc['emoji']} {loc['name']}",
                         callback_data=f"loc_{loc_id}",
                     )
                 ]
             )
 
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")])
-    await query.edit_message_text(
-        "\n".join(lines), reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    
+    text = "\n".join(lines)
+    text += "\n\n" + build_player_card(player)
+    
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 async def cb_select_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Начало охоты, ОСТАЁМСЯ В БОЕВОМ ИНТЕРФЕЙСЕ"""
     query = update.callback_query
     user = query.from_user
     chat = query.message.chat
@@ -2593,7 +2570,7 @@ async def cb_select_location(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if player["level"] < loc["min_level"] or player["level"] > loc["max_level"] + 10:
         await query.answer(
-            f"Доступно для уровней {loc['min_level']}-{loc['max_level']}.",
+            f"❌ Доступно для уровней {loc['min_level']}-{loc['max_level']}.",
             show_alert=True,
         )
         return
@@ -2603,12 +2580,19 @@ async def cb_select_location(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.answer("Не удалось начать бой.", show_alert=True)
         return
 
+    await show_hunt_battle(update, context, loc, battle, player)
+
+
+async def show_hunt_battle(update: Update, context: ContextTypes.DEFAULT_TYPE, loc: Dict, battle: Dict, player: Dict):
+    """Показывает боевой интерфейс охоты"""
+    query = update.callback_query
+    
     text = (
-        f"⚔️ Бой в локации {loc['emoji']} {loc['name']}\n\n"
-        f"Противник: {battle['enemy_emoji']} {battle['enemy_name']}\n"
-        f"❤️ HP врага: {battle['enemy_health']}/{battle['enemy_max_health']}\n"
-        f"⚔️ Урон врага: {battle['enemy_damage']}\n\n"
-        "Твои действия?"
+        f"⚔️ БОЙ: {loc['emoji']} {loc['name']}\n\n"
+        f"Враг: {battle['enemy_emoji']} {battle['enemy_name']} (ур.{battle['enemy_level']})\n"
+        f"❤️ {battle['enemy_health']}/{battle['enemy_max_health']}\n\n"
+        f"Твой HP: {player['health']}/{player['max_health']}\n\n"
+        "Выбери действие ⬇️"
     )
     keyboard = [
         [InlineKeyboardButton("⚔️ Атаковать", callback_data="attack")],
@@ -2619,6 +2603,7 @@ async def cb_select_location(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def cb_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Атака - остаёмся в боевом интерфейсе"""
     query = update.callback_query
     user = query.from_user
     chat = query.message.chat
@@ -2638,50 +2623,56 @@ async def cb_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer(result.get("message", "Ошибка."), show_alert=True)
         return
 
-    lines = ["⚔️ Атака\n"]
+    lines = []
     if result["is_crit"]:
-        lines.append(f"💥 Критический удар! Ты нанёс {result['damage']} урона.")
+        lines.append(f"💥 КРИТ! +{result['damage']} урона")
     else:
-        lines.append(f"Ты нанёс {result['damage']} урона.")
+        lines.append(f"⚔️ Атака: +{result['damage']} урона")
 
-    lines.append(f"❤️ HP врага: {result['enemy_hp']}/{result['enemy_max_hp']}")
+    lines.append(f"Враг: ❤️ {result['enemy_hp']}/{result['enemy_max_hp']}")
 
     if result.get("enemy_damage"):
-        lines.append(
-            f"Ответный удар врага: {result['enemy_damage']} урона.\n"
-            f"Твой HP: {result.get('player_hp', 0)}/{result.get('player_max_hp', 0)}"
-        )
+        lines.append(f"Враг ответил: -{result['enemy_damage']} урона")
+        lines.append(f"Ты: ❤️ {result.get('player_hp', 0)}/{result.get('player_max_hp', 0)}")
 
     keyboard: List[List[InlineKeyboardButton]] = []
 
     if result["victory"]:
-        lines.append(
-            f"\n🏆 Победа!\n+{result['xp_gained']} XP, +{result['gold_gained']} золота."
-        )
+        lines.append("")
+        lines.append(f"🏆 ПОБЕДА!")
+        lines.append(f"+ {result['xp_gained']} XP | + {result['gold_gained']} 💰")
         if result["level_up"] > 0:
-            lines.append(f"⬆️ Уровень повышен на {result['level_up']}!")
+            lines.append(f"⬆️ +{result['level_up']} УРОВНЕЙ!")
         if result["loot"]:
             loot = MATERIALS.get(result["loot"], {"name": result["loot"]})
-            lines.append(f"Добыча: {loot.get('name', result['loot'])}")
-
-        if result["is_dungeon"]:
-            lines.append("\n🏰 Ты прошёл этаж подземелья!")
-
-        keyboard.append([InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")])
+            lines.append(f"🎁 Добыча: {loot.get('name')}")
+        lines.append("")
+        lines.append("Хочешь ещё? 🤺")
+        
+        keyboard.append([InlineKeyboardButton("🔄 Снова охотиться", callback_data="locations")])
+        keyboard.append([InlineKeyboardButton("📊 В главное меню", callback_data="main_menu")])
+        
     elif result["defeat"]:
-        lines.append(f"\n💀 Поражение.\nПотеряно золота: {result['gold_lost']}.")
-        keyboard.append([InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")])
+        lines.append("")
+        lines.append(f"💀 ПОРАЖЕНИЕ")
+        lines.append(f"Потеряно золота: -{result['gold_lost']} 💰")
+        lines.append("")
+        lines.append("Сожалею... 😔")
+        
+        keyboard.append([InlineKeyboardButton("🔄 Попробовать ещё", callback_data="locations")])
+        keyboard.append([InlineKeyboardButton("📊 В главное меню", callback_data="main_menu")])
     else:
+        lines.append("")
         keyboard.append([InlineKeyboardButton("⚔️ Атаковать", callback_data="attack")])
         keyboard.append([InlineKeyboardButton("🧪 Зелье", callback_data="use_potion")])
         keyboard.append([InlineKeyboardButton("🏃 Сбежать", callback_data="escape")])
 
-    await query.edit_message_text(
-        "\n".join(lines), reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    text = "\n".join(lines)
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 async def cb_use_potion(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Использование зелья"""
     query = update.callback_query
     user = query.from_user
     chat = query.message.chat
@@ -2693,7 +2684,7 @@ async def cb_use_potion(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if get_item_quantity(chat.id, user.id, "health_potion") <= 0:
-        await query.answer("Нет зелий лечения.", show_alert=True)
+        await query.answer("❌ Нет зелий лечения.", show_alert=True)
         return
 
     remove_item(chat.id, user.id, "health_potion", 1)
@@ -2713,9 +2704,9 @@ async def cb_use_potion(update: Update, context: ContextTypes.DEFAULT_TYPE):
     new_player_hp = new_hp - enemy_damage
 
     lines = [
-        "🧪 Ты используешь зелье лечения.",
-        f"Ты восстанавливаешь {heal_amount} HP (до {new_hp}/{player['max_health']}).",
-        f"Враг наносит {enemy_damage} урона.",
+        "🧪 Ты пьёшь зелье!",
+        f"✨ + {heal_amount} HP (теперь {new_hp}/{player['max_health']})",
+        f"🎯 Враг атакует: -{enemy_damage}",
     ]
 
     keyboard: List[List[InlineKeyboardButton]] = []
@@ -2728,18 +2719,14 @@ async def cb_use_potion(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn = get_db()
         c = conn.cursor()
         c.execute(
-            """
-            UPDATE players
-            SET health = max_health,
-                total_battles_lost = total_battles_lost + 1
-            WHERE user_id = ? AND chat_id = ?
-            """,
+            "UPDATE players SET health = max_health, total_battles_lost = total_battles_lost + 1 WHERE user_id = ? AND chat_id = ?",
             (user.id, chat.id),
         )
         conn.commit()
         conn.close()
-        lines.append(f"💀 Поражение. Потеряно золота: {gold_lost}.")
-        keyboard.append([InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")])
+        lines.append(f"\n💀 ПОРАЖЕНИЕ: -{gold_lost} 💰")
+        keyboard.append([InlineKeyboardButton("🔄 Попробовать ещё", callback_data="locations")])
+        keyboard.append([InlineKeyboardButton("📊 Меню", callback_data="main_menu")])
     else:
         conn = get_db()
         c = conn.cursor()
@@ -2749,16 +2736,18 @@ async def cb_use_potion(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         conn.commit()
         conn.close()
-        lines.append(f"Твой HP: {new_player_hp}/{player['max_health']}.")
+        lines.append(f"❤️ Твой HP: {new_player_hp}/{player['max_health']}")
+        lines.append("")
         keyboard.append([InlineKeyboardButton("⚔️ Атаковать", callback_data="attack")])
+        keyboard.append([InlineKeyboardButton("🧪 Зелье", callback_data="use_potion")])
         keyboard.append([InlineKeyboardButton("🏃 Сбежать", callback_data="escape")])
 
-    await query.edit_message_text(
-        "\n".join(lines), reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    text = "\n".join(lines)
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 async def cb_escape(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Попытка сбежать из боя"""
     query = update.callback_query
     user = query.from_user
     chat = query.message.chat
@@ -2771,11 +2760,9 @@ async def cb_escape(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if random.randint(1, 100) <= 50:
         end_battle(chat.id, user.id)
-        text = "🏃 Ты успешно сбежал из боя."
-        keyboard = [[InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")]]
-        await query.edit_message_text(
-            text, reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        text = "🏃 Ты успешно сбежал!"
+        keyboard = [[InlineKeyboardButton("⬅️ В охоту", callback_data="locations")]]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
     enemy_damage, _ = calculate_damage(battle["enemy_damage"], player["defense"], 5)
@@ -2783,7 +2770,7 @@ async def cb_escape(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     lines = [
         "❌ Не удалось сбежать!",
-        f"Враг наносит {enemy_damage} урона.",
+        f"Враг ударил: -{enemy_damage} HP",
     ]
     keyboard: List[List[InlineKeyboardButton]] = []
 
@@ -2795,18 +2782,13 @@ async def cb_escape(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn = get_db()
         c = conn.cursor()
         c.execute(
-            """
-            UPDATE players
-            SET health = max_health,
-                total_battles_lost = total_battles_lost + 1
-            WHERE user_id = ? AND chat_id = ?
-            """,
+            "UPDATE players SET health = max_health, total_battles_lost = total_battles_lost + 1 WHERE user_id = ? AND chat_id = ?",
             (user.id, chat.id),
         )
         conn.commit()
         conn.close()
-        lines.append(f"💀 Поражение. Потеряно золота: {gold_lost}.")
-        keyboard.append([InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")])
+        lines.append(f"\n💀 ПОРАЖЕНИЕ: -{gold_lost} 💰")
+        keyboard.append([InlineKeyboardButton("🔄 Ещё раз", callback_data="locations")])
     else:
         conn = get_db()
         c = conn.cursor()
@@ -2816,21 +2798,19 @@ async def cb_escape(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         conn.commit()
         conn.close()
-        lines.append(f"Твой HP: {new_player_hp}/{player['max_health']}.")
+        lines.append(f"❤️ Твой HP: {new_player_hp}/{player['max_health']}")
+        lines.append("")
         keyboard.append([InlineKeyboardButton("⚔️ Атаковать", callback_data="attack")])
-        keyboard.append(
-            [InlineKeyboardButton("🏃 Попробовать ещё раз", callback_data="escape")]
-        )
+        keyboard.append([InlineKeyboardButton("🏃 Ещё попытка", callback_data="escape")])
 
-    await query.edit_message_text(
-        "\n".join(lines), reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    text = "\n".join(lines)
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
-# ===================== ПОДЗЕМЕЛЬЯ =====================
-
+# ===================== ПОДЗЕМЕЛЬЯ - УЛУЧШЕНО =====================
 
 async def cb_dungeon_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Меню подземелий"""
     query = update.callback_query
     user = query.from_user
     chat = query.message.chat
@@ -2853,54 +2833,54 @@ async def cb_dungeon_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_active = bool(row["is_active"]) if row else False
 
     text = (
-        "🏰 Подземелье\n\n"
+        f"🏰 ПОДЗЕМЕЛЬЕ\n\n"
         f"Текущий этаж: {floor}\n"
-        f"Лучший этаж: {player['dungeon_rating']}\n\n"
-        "Побеждай врагов и поднимайся всё выше!"
+        f"Лучший результат: {player['dungeon_rating']}\n\n"
+        f"Пробивайся всё глубже! 💪"
     )
+    text += "\n\n" + build_player_card(player)
+    
     if is_active:
         keyboard = [
-            [InlineKeyboardButton("⚔️ Продолжить бой", callback_data="dungeon_continue")],
-            [InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")],
+            [InlineKeyboardButton("⚔️ Продолжить", callback_data="dungeon_continue")],
+            [InlineKeyboardButton("📊 Меню", callback_data="main_menu")],
         ]
     else:
         keyboard = [
-            [InlineKeyboardButton("🚪 Войти в подземелье", callback_data="dungeon_start")],
-            [InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")],
+            [InlineKeyboardButton("🚪 Войти", callback_data="dungeon_start")],
+            [InlineKeyboardButton("📊 Меню", callback_data="main_menu")],
         ]
-    await query.edit_message_text(
-        text, reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 async def cb_dungeon_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Начало подземелья"""
     query = update.callback_query
     user = query.from_user
     chat = query.message.chat
 
     result = start_dungeon(chat.id, user.id)
     if not result:
-        await query.answer("Не удалось начать подземелье.", show_alert=True)
+        await query.answer("Уже в подземелье или ошибка.", show_alert=True)
         return
 
+    player = get_player(chat.id, user.id)
     text = (
-        f"🏰 Подземелье — этаж {result['floor']}\n\n"
-        f"Ты встречаешь {result['enemy_emoji']} {result['enemy_name']}\n"
-        f"❤️ HP врага: {result['enemy_health']}/{result['enemy_max_health']}\n"
-        f"⚔️ Урон врага: {result['enemy_damage']}\n\n"
-        "Твои действия?"
+        f"🏰 ПОДЗЕМЕЛЬЕ — ЭТАЖ {result['floor']}\n\n"
+        f"Враг: {result['enemy_emoji']} {result['enemy_name']}\n"
+        f"❤️ {result['enemy_health']}/{result['enemy_max_health']}\n\n"
+        f"Твой HP: {player['health']}/{player['max_health']}"
     )
     keyboard = [
         [InlineKeyboardButton("⚔️ Атаковать", callback_data="attack")],
         [InlineKeyboardButton("🧪 Зелье", callback_data="use_potion")],
         [InlineKeyboardButton("🏃 Сбежать", callback_data="escape")],
     ]
-    await query.edit_message_text(
-        text, reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 async def cb_dungeon_continue(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Продолжение подземелья"""
     query = update.callback_query
     user = query.from_user
     chat = query.message.chat
@@ -2910,28 +2890,27 @@ async def cb_dungeon_continue(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.answer("Нет активного боя в подземелье.", show_alert=True)
         return
 
+    player = get_player(chat.id, user.id)
     enemy = ENEMIES.get(battle["enemy_id"], {"name": "Враг", "emoji": "❓"})
+    
     text = (
-        "⚔️ Бой в подземелье\n\n"
-        f"{enemy['emoji']} {enemy['name']}\n"
-        f"❤️ HP врага: {battle['enemy_health']}/{battle['enemy_max_health']}\n"
-        f"Твой HP: {battle['player_health']}/{battle['player_max_health']}\n\n"
-        "Твои действия?"
+        f"🏰 ПОДЗЕМЕЛЬЕ ПРОДОЛЖЕНИЕ\n\n"
+        f"Враг: {enemy['emoji']} {enemy['name']}\n"
+        f"❤️ {battle['enemy_health']}/{battle['enemy_max_health']}\n\n"
+        f"Ты: ❤️ {battle['player_health']}/{battle['player_max_health']}"
     )
     keyboard = [
         [InlineKeyboardButton("⚔️ Атаковать", callback_data="attack")],
         [InlineKeyboardButton("🧪 Зелье", callback_data="use_potion")],
         [InlineKeyboardButton("🏃 Сбежать", callback_data="escape")],
     ]
-    await query.edit_message_text(
-        text, reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
-# ===================== ПВП =====================
-
+# ===================== ПВП - УПРОЩЕННОЕ =====================
 
 async def cb_pvp_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """НОВЫЙ ПВП ИНТЕРФЕЙС - МАКСИМАЛЬНО УПРОЩЁН"""
     query = update.callback_query
     user = query.from_user
     chat = query.message.chat
@@ -2941,441 +2920,295 @@ async def cb_pvp_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("Сначала создай персонажа.", show_alert=True)
         return
 
-    add_pvp_queue(chat.id, user.id)
-    confirm_pvp_search(chat.id, user.id)
-
+    # Проверяем есть ли уже противник ожидающий
+    opponent = find_pvp_opponent(chat.id, user.id)
+    
     text = (
-        "⚔️ ПВП АРЕНА\n\n"
-        "🔍 Поиск противника начат.\n\n"
-        "Нажимай «⏸️ Проверить снова», пока не будет найден соперник.\n"
-        "Противники ищутся глобально среди всех игроков бота."
+        f"🤺 ПВП АРЕНА\n\n"
+        f"Уровень: {player['level']}\n"
+        f"ПВП Рекорд: {player['pvp_wins']}W-{player['pvp_losses']}L\n\n"
     )
-    keyboard = [
-        [InlineKeyboardButton("⏸️ Проверить снова", callback_data="pvp_check")],
-        [InlineKeyboardButton("❌ Отмена", callback_data="pvp_cancel")],
-        [InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")],
-    ]
-    await query.edit_message_text(
-        text, reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    
+    if opponent:
+        text += (
+            f"⚔️ НАЙДЕН ПРОТИВНИК!\n\n"
+            f"{CLASSES[opponent['class']]['emoji']} {opponent['username']}\n"
+            f"Уровень: {opponent['level']}\n\n"
+            f"Начинаем сражение?"
+        )
+        keyboard = [
+            [InlineKeyboardButton("⚔️ В БОЙ!", callback_data=f"pvp_fight_{opponent['user_id']}")],
+            [InlineKeyboardButton("❌ Отклонить", callback_data="pvp_cancel_search")],
+        ]
+    else:
+        add_pvp_queue(chat.id, user.id)
+        confirm_pvp_search(chat.id, user.id)
+        
+        text += (
+            "🔍 Поиск противника...\n\n"
+            "Может занять несколько секунд."
+        )
+        keyboard = [
+            [InlineKeyboardButton("🔄 Проверить", callback_data="pvp_menu")],
+            [InlineKeyboardButton("❌ Отмена", callback_data="pvp_cancel_search")],
+        ]
+
+    text += "\n\n" + build_player_card(player)
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
-async def cb_pvp_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cb_pvp_fight(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """ПВП БОЙ"""
     query = update.callback_query
     user = query.from_user
     chat = query.message.chat
 
-    opponent = find_pvp_opponent(chat.id, user.id)
-    if not opponent:
+    opponent_id = int(query.data.replace("pvp_fight_", ""))
+    
+    result = pvp_battle(chat.id, user.id, opponent_id, user.username or user.first_name)
+    
+    if not result.get("success"):
+        await query.answer(result.get("message", "Ошибка боя."), show_alert=True)
+        return
+
+    attacker = get_player(chat.id, user.id)
+    
+    winner_name = result["winner_name"]
+    loser_name = result["loser_name"]
+    reward = result["reward_gold"]
+    
+    if result["winner_id"] == user.id:
         text = (
-            "⚔️ ПВП АРЕНА\n\n"
-            "❌ Пока нет подходящего противника.\n\n"
-            "Подожди немного и нажми «⏸️ Проверить снова»."
+            f"🏆 ТЫ ПОБЕДИЛ!\n\n"
+            f"Противник: {loser_name}\n"
+            f"Награда: +{reward} 💰\n\n"
+            f"Боевая статистика:\n"
+            f"Твой урон: {result['attacker_damage']} {'💥' if result['attacker_crit'] else ''}\n"
+            f"Его урон: {result['defender_damage']} {'💥' if result['defender_crit'] else ''}"
         )
-        keyboard = [
-            [InlineKeyboardButton("⏸️ Проверить снова", callback_data="pvp_check")],
-            [InlineKeyboardButton("❌ Отмена", callback_data="pvp_cancel")],
-            [InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")],
-        ]
     else:
-        cls = CLASSES.get(opponent["class"], CLASSES["warrior"])
-        reward = max(1, int(opponent["gold"] * 0.1))
         text = (
-            "⚔️ ПВП АРЕНА\n\n"
-            "🎯 Противник найден!\n\n"
-            f"{cls['emoji']} {opponent['username']}\n"
-            f"🏅 Уровень: {opponent['level']}\n"
-            f"⚔️ Атака: {opponent['attack']}\n"
-            f"🛡️ Защита: {opponent['defense']}\n"
-            f"💰 Примерная награда: {reward}\n\n"
-            "Нажми «⚔️ Начать бой», чтобы начать сражение."
+            f"💀 ТЫ ПРОИГРАЛ\n\n"
+            f"Победитель: {winner_name}\n"
+            f"Потеря: -{reward} 💰\n\n"
+            f"Боевая статистика:\n"
+            f"Его урон: {result['defender_damage']} {'💥' if result['defender_crit'] else ''}\n"
+            f"Твой урон: {result['attacker_damage']} {'💥' if result['attacker_crit'] else ''}"
         )
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    "⚔️ Начать бой",
-                    callback_data=f"pvp_start_{opponent['user_id']}_{opponent['chat_id']}",
-                )
-            ],
-            [InlineKeyboardButton("❌ Отмена", callback_data="pvp_cancel")],
-            [InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")],
-        ]
 
-        conn = get_db()
-        c = conn.cursor()
-        c.execute(
-            "UPDATE pvp_queue SET is_waiting = 0 WHERE user_id IN (?, ?)",
-            (user.id, opponent["user_id"]),
-        )
-        conn.commit()
-        conn.close()
-
-    try:
-        await query.edit_message_text(
-            text, reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-    except Exception as e:
-        logger.error(f"Ошибка редактирования ПВП сообщения: {e}")
-        await query.answer("Статус не изменился.", show_alert=False)
+    text += "\n\n" + build_player_card(attacker)
+    
+    keyboard = [
+        [InlineKeyboardButton("🔄 Ещё матч", callback_data="pvp_menu")],
+        [InlineKeyboardButton("📊 Меню", callback_data="main_menu")],
+    ]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
-async def cb_pvp_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cb_pvp_cancel_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Отмена поиска ПВП"""
     query = update.callback_query
     user = query.from_user
     chat = query.message.chat
 
     cancel_pvp_search(chat.id, user.id)
-    text = "❌ Поиск ПВП противника отменён."
-    keyboard = [[InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")]]
-    await query.edit_message_text(
-        text, reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-
-
-async def cb_pvp_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    user = query.from_user
-    chat = query.message.chat
-
-    data = query.data.replace("pvp_start_", "")
-    parts = data.split("_")
-    if len(parts) != 2:
-        await query.answer("Ошибка данных ПВП.", show_alert=True)
-        return
-
-    defender_id = int(parts[0])
-    defender_chat_id = int(parts[1])
-
-    result = pvp_battle(chat.id, user.id, defender_id, user.username or "Игрок")
-    if not result.get("success"):
-        await query.answer(result.get("message", "Ошибка ПВП."), show_alert=True)
-        return
-
-    attacker = get_player(chat.id, user.id)
-    defender = get_player(defender_chat_id, defender_id)
-
-    if result["winner_id"] == user.id:
-        text_attacker = (
-            "⚔️ ПВП БОЙ\n\n"
-            "🎉 ПОБЕДА!\n\n"
-            f"Ты победил {defender['username']}!\n"
-            f"Твой урон: {result['attacker_damage']}"
-            f"{' (крит)' if result['attacker_crit'] else ''}\n"
-            f"Получено урона: {result['defender_damage']}"
-            f"{' (крит)' if result['defender_crit'] else ''}\n\n"
-            f"💰 Награда: +{result['reward_gold']} золота."
-        )
-        text_defender = (
-            "⚔️ ПВП БОЙ\n\n"
-            "💀 ПОРАЖЕНИЕ\n\n"
-            f"Тебя победил {attacker['username']}.\n"
-            f"Твой урон: {result['defender_damage']}"
-            f"{' (крит)' if result['defender_crit'] else ''}\n"
-            f"Получено урона: {result['attacker_damage']}"
-            f"{' (крит)' if result['attacker_crit'] else ''}\n\n"
-            f"💸 Потеряно: -{result['reward_gold']} золота."
-        )
-    else:
-        text_attacker = (
-            "⚔️ ПВП БОЙ\n\n"
-            "💀 ПОРАЖЕНИЕ\n\n"
-            f"Тебя победил {defender['username']}.\n"
-            f"Твой урон: {result['attacker_damage']}"
-            f"{' (крит)' if result['attacker_crit'] else ''}\n"
-            f"Получено урона: {result['defender_damage']}"
-            f"{' (крит)' if result['defender_crit'] else ''}\n\n"
-            f"💸 Потеряно: -{result['reward_gold']} золота."
-        )
-        text_defender = (
-            "⚔️ ПВП БОЙ\n\n"
-            "🎉 ПОБЕДА!\n\n"
-            f"Ты победил {attacker['username']}!\n"
-            f"Твой урон: {result['defender_damage']}"
-            f"{' (крит)' if result['defender_crit'] else ''}\n"
-            f"Получено урона: {result['attacker_damage']}"
-            f"{' (крит)' if result['attacker_crit'] else ''}\n\n"
-            f"💰 Награда: +{result['reward_gold']} золота."
-        )
-
-    keyboard = [[InlineKeyboardButton("⬅️ Главное меню", callback_data="main_menu")]]
-
-    await query.edit_message_text(
-        text_attacker, reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-
-    try:
-        await context.bot.send_message(
-            chat_id=defender_chat_id,
-            text=text_defender,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
-    except Exception as e:
-        logger.error(f"Не удалось отправить ПВП результат противнику: {e}")
+    
+    player = get_player(chat.id, user.id)
+    text = "❌ Поиск отменён.\n\n" + build_player_card(player)
+    keyboard = [
+        [InlineKeyboardButton("📊 Главное меню", callback_data="main_menu")],
+    ]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 # ===================== КРАФТИНГ =====================
 
-
 async def cb_crafting(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
+    """Меню крафтинга"""
+    query = update.callback_query if update.callback_query else None
+    message = query.message if query else update.message
+    user = update.effective_user
+    chat = update.effective_chat
 
-    text = "⚒️ КРАФТИНГ\n\n"
+    player = get_player(chat.id, user.id)
+
+    text = f"⚒️ КРАФТИНГ (Золото: {player['gold']} 💰)\n\n"
     keyboard: List[List[InlineKeyboardButton]] = []
 
-    for recipe_id, recipe in list(CRAFTING_RECIPES.items()):
+    for recipe_id, recipe in CRAFTING_RECIPES.items():
+        can_afford = player["gold"] >= recipe["gold"]
+        can_level = player["level"] >= recipe["level"]
+        status = "✅" if (can_afford and can_level) else "❌"
+
+        text += f"{status} {recipe['emoji']} {recipe['name']} — {recipe['gold']}💰\n"
         keyboard.append(
             [
                 InlineKeyboardButton(
-                    f"{recipe['emoji']} {recipe['name']}",
+                    f"{status} {recipe['emoji']}",
                     callback_data=f"craft_{recipe_id}",
                 )
             ]
         )
 
+    text += "\n\n" + build_player_card(player)
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")])
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+    
+    if query:
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 async def cb_craft(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Крафт предмета"""
     query = update.callback_query
     user = query.from_user
     chat = query.message.chat
 
     recipe_id = query.data.replace("craft_", "")
     recipe = CRAFTING_RECIPES.get(recipe_id)
+
     if not recipe:
         await query.answer("Рецепт не найден.", show_alert=True)
         return
 
-    player = get_player(chat.id, user.id)
-    if not player:
-        await query.answer("Персонаж не найден.", show_alert=True)
-        return
+    result = craft_item(chat.id, user.id, recipe_id)
 
-    text = f"{recipe['emoji']} {recipe['name']}\n\n"
-
-    has_all = True
-    for material, needed in recipe["materials"].items():
-        have = get_material(chat.id, user.id, material)
-        material_info = MATERIALS[material]
-        status = "✅" if have >= needed else "❌"
-        text += f"{status} {material_info['emoji']} {material_info['name']}: {have}/{needed}\n"
-        if have < needed:
-            has_all = False
-
-    gold_ok = player["gold"] >= recipe["gold"]
-    text += f"\n{'✅' if gold_ok else '❌'} Золото: {player['gold']}/{recipe['gold']}\n"
-
-    level_ok = player["level"] >= recipe["level"]
-    text += f"{'✅' if level_ok else '❌'} Уровень: {player['level']}/{recipe['level']}\n"
-
-    keyboard: List[List[InlineKeyboardButton]] = []
-    if has_all and gold_ok and level_ok:
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    "✅ Крафтить",
-                    callback_data=f"craft_confirm_{recipe_id}",
-                )
-            ]
-        )
-    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="crafting")])
-
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+    if result.get("success"):
+        text = f"✨ Крафтено: {result['name']}"
+        await query.answer(text, show_alert=True)
+        await cb_crafting(update, context)
+    else:
+        await query.answer(result.get("message", "Ошибка крафта."), show_alert=True)
 
 
-async def cb_craft_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+CallbackQueryHandler.DEFAULT_TIMEOUT = 60
+
+# ===================== РЕЙТИНГИ =====================
+
+async def cb_ratings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Меню рейтингов"""
     query = update.callback_query
     user = query.from_user
     chat = query.message.chat
 
-    recipe_id = query.data.replace("craft_confirm_", "")
-    result = craft_item(chat.id, user.id, recipe_id)
-    if not result["success"]:
-        await query.answer(result["message"], show_alert=True)
-        return
-
-    text = f"✅ Успешно скрафчено!\n\n🎁 Получено: {result['name']}"
-    keyboard = [[InlineKeyboardButton("⬅️ Крафтинг", callback_data="crafting")]]
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
-
-
-# ===================== РЕЙТИНГИ =====================
-
-
-async def cb_ratings(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    text = "🏆 Рейтинги\n\nВыбери таблицу:"
+    text = "🏆 РЕЙТИНГИ\n\nВыбери рейтинг ⬇️"
     keyboard = [
-        [InlineKeyboardButton("🌍 Общий рейтинг", callback_data="rating_global")],
-        [InlineKeyboardButton("⚔️ ПВП рейтинг", callback_data="rating_pvp")],
-        [InlineKeyboardButton("🏰 Рейтинг подземелий", callback_data="rating_dungeon")],
+        [InlineKeyboardButton("⚔️ По уровню", callback_data="ratings_level")],
+        [InlineKeyboardButton("🤺 ПВП рейтинг", callback_data="ratings_pvp")],
+        [InlineKeyboardButton("🏰 Подземелье", callback_data="ratings_dungeon")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")],
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
-async def cb_rating_global(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    user = query.from_user
-    chat = query.message.chat
-
-    leaders = get_global_leaderboard(chat.id, 10)
-    player = get_player(chat.id, user.id)
-    pos = get_player_position(chat.id, user.id)
-
-    if not leaders:
-        text = "Пока нет игроков в рейтинге."
-    else:
-        lines = ["🏆 Глобальный рейтинг\n", "№  Игрок               Ур.   💰Золото"]
-        for i, leader in enumerate(leaders, start=1):
-            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
-            name = (leader["username"] or "Безымянный")[:16].ljust(16)
-            lvl = str(leader["level"]).rjust(2)
-            gold = str(leader["gold"]).rjust(6)
-            lines.append(f"{medal} {name}  {lvl}   {gold}")
-        if player:
-            lines.append("")
-            lines.append(
-                f"Ты: #{pos} {player['username']} (ур. {player['level']}, золото {player['gold']})"
-            )
-        text = "\n".join(lines)
-
-    keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="ratings")]]
-    await query.edit_message_text(
-        text, reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-
-
-async def cb_rating_pvp(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cb_ratings_level(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Рейтинг по уровню"""
     query = update.callback_query
     chat = query.message.chat
 
-    leaders = get_pvp_leaderboard(chat.id, 10)
-    if not leaders:
-        text = "ПВП рейтинг пока пуст."
-    else:
-        lines = ["⚔️ ПВП рейтинг\n", "№  Игрок               W   L  WR%"]
-        for i, leader in enumerate(leaders, start=1):
-            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
-            name = (leader["username"] or "Безымянный")[:16].ljust(16)
-            w = str(leader["pvp_wins"]).rjust(3)
-            l = str(leader["pvp_losses"]).rjust(3)
-            wr = str(leader["winrate"]).rjust(4)
-            lines.append(f"{medal} {name} {w} {l} {wr}")
-        text = "\n".join(lines)
+    players = get_global_leaderboard(chat.id, 10)
+    
+    text = "⚔️ ТОП-10 ПО УРОВНЮ:\n\n"
+    for i, p in enumerate(players, 1):
+        text += f"{i}. {p['username']} — Ур.{p['level']} 💰{p['gold']}\n"
 
-    keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="ratings")]]
-    await query.edit_message_text(
-        text, reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    keyboard = [
+        [InlineKeyboardButton("⬅️ Назад", callback_data="ratings")],
+    ]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
-async def cb_rating_dungeon(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cb_ratings_pvp(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """ПВП рейтинг"""
     query = update.callback_query
     chat = query.message.chat
 
-    leaders = get_dungeon_leaderboard(chat.id, 10)
-    if not leaders:
-        text = "Рейтинг подземелий пока пуст."
-    else:
-        lines = ["🏰 Рейтинг подземелий\n", "№  Игрок               Этаж  Боссы"]
-        for i, leader in enumerate(leaders, start=1):
-            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
-            name = (leader["username"] or "Безымянный")[:16].ljust(16)
-            floor = str(leader["dungeon_rating"]).rjust(4)
-            bosses = str(leader["total_bosses_killed"]).rjust(3)
-            lines.append(f"{medal} {name}  {floor}  {bosses}")
-        text = "\n".join(lines)
+    players = get_pvp_leaderboard(chat.id, 10)
+    
+    text = "🤺 ТОП-10 ПВП:\n\n"
+    for i, p in enumerate(players, 1):
+        wr = p['winrate']
+        text += f"{i}. {p['username']} — {p['pvp_wins']}W-{p['pvp_losses']}L ({wr}%)\n"
 
-    keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="ratings")]]
-    await query.edit_message_text(
-        text, reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    keyboard = [
+        [InlineKeyboardButton("⬅️ Назад", callback_data="ratings")],
+    ]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
-# ===================== FASTAPI ДЛЯ RENDER =====================
+async def cb_ratings_dungeon(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Рейтинг подземелий"""
+    query = update.callback_query
+    chat = query.message.chat
 
-api_app = FastAPI()
+    players = get_dungeon_leaderboard(chat.id, 10)
+    
+    text = "🏰 ТОП-10 ПОДЗЕМЕЛЬЯ:\n\n"
+    for i, p in enumerate(players, 1):
+        text += f"{i}. {p['username']} — Этаж {p['dungeon_rating']} (Боссов: {p['total_bosses_killed']})\n"
 
-
-@api_app.get("/")
-async def root():
-    return {"status": "ok", "message": "RuneQuestRPG bot v5.3 is running"}
-
-
-@api_app.get("/health")
-async def health():
-    return {"status": "healthy"}
-
-
-# ===================== ЗАПУСК =====================
-
-
-def run_fastapi():
-    uvicorn.run(api_app, host="0.0.0.0", port=PORT, log_level="info")
+    keyboard = [
+        [InlineKeyboardButton("⬅️ Назад", callback_data="ratings")],
+    ]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
-def main():
-    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
-    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
+# ===================== ГЛАВНАЯ ФУНКЦИЯ БОТА =====================
 
+async def main():
     init_database()
 
-    threading.Thread(target=run_fastapi, daemon=True).start()
-    logger.info(f"📡 FastAPI server started on 0.0.0.0:{PORT}")
+    app = Application.builder().token(BOT_TOKEN).build()
 
-    application = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", cmd_start))
 
-    application.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(CallbackQueryHandler(cb_select_class, pattern="^class_"))
+    app.add_handler(CallbackQueryHandler(show_main_menu, pattern="^main_menu$"))
+    app.add_handler(CallbackQueryHandler(cb_profile, pattern="^profile$"))
+    app.add_handler(CallbackQueryHandler(cb_inventory, pattern="^inventory$"))
+    app.add_handler(CallbackQueryHandler(cb_show_equipment, pattern="^equipment$"))
+    app.add_handler(CallbackQueryHandler(cb_select_weapon_to_equip, pattern="^select_weapon$"))
+    app.add_handler(CallbackQueryHandler(cb_equip_weapon_handler, pattern="^equip_weapon_"))
+    app.add_handler(CallbackQueryHandler(cb_select_armor_to_equip, pattern="^select_armor$"))
+    app.add_handler(CallbackQueryHandler(cb_equip_armor_handler, pattern="^equip_armor_"))
 
-    application.add_handler(CallbackQueryHandler(cb_select_class, pattern=r"^class_"))
-    application.add_handler(CallbackQueryHandler(show_main_menu, pattern=r"^main_menu$"))
-    application.add_handler(CallbackQueryHandler(cb_profile, pattern=r"^profile$"))
-    application.add_handler(CallbackQueryHandler(cb_inventory, pattern=r"^inventory$"))
-    application.add_handler(CallbackQueryHandler(cb_show_equipment, pattern=r"^equipment$"))
-    application.add_handler(CallbackQueryHandler(cb_select_weapon_to_equip, pattern=r"^select_weapon$"))
-    application.add_handler(CallbackQueryHandler(cb_equip_weapon_handler, pattern=r"^equip_weapon_"))
-    application.add_handler(CallbackQueryHandler(cb_select_armor_to_equip, pattern=r"^select_armor$"))
-    application.add_handler(CallbackQueryHandler(cb_equip_armor_handler, pattern=r"^equip_armor_"))
+    app.add_handler(CallbackQueryHandler(cb_show_shop, pattern="^shop$"))
+    app.add_handler(CallbackQueryHandler(cb_show_weapons_shop, pattern="^shop_weapons$"))
+    app.add_handler(CallbackQueryHandler(cb_show_armor_shop, pattern="^shop_armor$"))
+    app.add_handler(CallbackQueryHandler(cb_show_pets_shop, pattern="^shop_pets$"))
+    app.add_handler(CallbackQueryHandler(cb_show_runes_shop, pattern="^shop_runes$"))
+    app.add_handler(CallbackQueryHandler(cb_buy_weapon, pattern="^buy_weapon_"))
+    app.add_handler(CallbackQueryHandler(cb_buy_armor, pattern="^buy_armor_"))
+    app.add_handler(CallbackQueryHandler(cb_buy_pet, pattern="^buy_pet_"))
+    app.add_handler(CallbackQueryHandler(cb_buy_rune, pattern="^buy_rune_"))
 
-    application.add_handler(CallbackQueryHandler(cb_show_shop, pattern=r"^shop$"))
-    application.add_handler(CallbackQueryHandler(cb_show_weapons_shop, pattern=r"^shop_weapons$"))
-    application.add_handler(CallbackQueryHandler(cb_show_armor_shop, pattern=r"^shop_armor$"))
-    application.add_handler(CallbackQueryHandler(cb_show_pets_shop, pattern=r"^shop_pets$"))
-    application.add_handler(CallbackQueryHandler(cb_show_runes_shop, pattern=r"^shop_runes$"))
-    application.add_handler(CallbackQueryHandler(cb_buy_weapon, pattern=r"^buy_weapon_"))
-    application.add_handler(CallbackQueryHandler(cb_buy_armor, pattern=r"^buy_armor_"))
-    application.add_handler(CallbackQueryHandler(cb_buy_pet, pattern=r"^buy_pet_"))
-    application.add_handler(CallbackQueryHandler(cb_buy_rune, pattern=r"^buy_rune_"))
+    app.add_handler(CallbackQueryHandler(cb_show_locations, pattern="^locations$"))
+    app.add_handler(CallbackQueryHandler(cb_select_location, pattern="^loc_"))
+    app.add_handler(CallbackQueryHandler(cb_attack, pattern="^attack$"))
+    app.add_handler(CallbackQueryHandler(cb_use_potion, pattern="^use_potion$"))
+    app.add_handler(CallbackQueryHandler(cb_escape, pattern="^escape$"))
 
-    application.add_handler(CallbackQueryHandler(cb_show_locations, pattern=r"^locations$"))
-    application.add_handler(CallbackQueryHandler(cb_select_location, pattern=r"^loc_"))
-    application.add_handler(CallbackQueryHandler(cb_attack, pattern=r"^attack$"))
-    application.add_handler(CallbackQueryHandler(cb_use_potion, pattern=r"^use_potion$"))
-    application.add_handler(CallbackQueryHandler(cb_escape, pattern=r"^escape$"))
+    app.add_handler(CallbackQueryHandler(cb_dungeon_menu, pattern="^dungeon$"))
+    app.add_handler(CallbackQueryHandler(cb_dungeon_start, pattern="^dungeon_start$"))
+    app.add_handler(CallbackQueryHandler(cb_dungeon_continue, pattern="^dungeon_continue$"))
 
-    application.add_handler(CallbackQueryHandler(cb_dungeon_menu, pattern=r"^dungeon$"))
-    application.add_handler(CallbackQueryHandler(cb_dungeon_start, pattern=r"^dungeon_start$"))
-    application.add_handler(CallbackQueryHandler(cb_dungeon_continue, pattern=r"^dungeon_continue$"))
+    app.add_handler(CallbackQueryHandler(cb_pvp_menu, pattern="^pvp_menu$"))
+    app.add_handler(CallbackQueryHandler(cb_pvp_fight, pattern="^pvp_fight_"))
+    app.add_handler(CallbackQueryHandler(cb_pvp_cancel_search, pattern="^pvp_cancel_search$"))
 
-    application.add_handler(CallbackQueryHandler(cb_pvp_menu, pattern=r"^pvp_menu$"))
-    application.add_handler(CallbackQueryHandler(cb_pvp_check, pattern=r"^pvp_check$"))
-    application.add_handler(CallbackQueryHandler(cb_pvp_cancel, pattern=r"^pvp_cancel$"))
-    application.add_handler(CallbackQueryHandler(cb_pvp_start, pattern=r"^pvp_start_\d+_\d+$"))
+    app.add_handler(CallbackQueryHandler(cb_crafting, pattern="^crafting$"))
+    app.add_handler(CallbackQueryHandler(cb_craft, pattern="^craft_"))
 
-    application.add_handler(CallbackQueryHandler(cb_crafting, pattern=r"^crafting$"))
-    application.add_handler(CallbackQueryHandler(cb_craft, pattern=r"^craft_"))
-    application.add_handler(CallbackQueryHandler(cb_craft_confirm, pattern=r"^craft_confirm_"))
+    app.add_handler(CallbackQueryHandler(cb_ratings, pattern="^ratings$"))
+    app.add_handler(CallbackQueryHandler(cb_ratings_level, pattern="^ratings_level$"))
+    app.add_handler(CallbackQueryHandler(cb_ratings_pvp, pattern="^ratings_pvp$"))
+    app.add_handler(CallbackQueryHandler(cb_ratings_dungeon, pattern="^ratings_dungeon$"))
 
-    application.add_handler(CallbackQueryHandler(cb_ratings, pattern=r"^ratings$"))
-    application.add_handler(CallbackQueryHandler(cb_rating_global, pattern=r"^rating_global$"))
-    application.add_handler(CallbackQueryHandler(cb_rating_pvp, pattern=r"^rating_pvp$"))
-    application.add_handler(CallbackQueryHandler(cb_rating_dungeon, pattern=r"^rating_dungeon$"))
-
-    logger.info("✅ RuneQuestRPG bot v5.3 запущен. Ожидаем апдейты...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    logger.info("🚀 Бот запущен!")
+    await app.run_polling()
 
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
